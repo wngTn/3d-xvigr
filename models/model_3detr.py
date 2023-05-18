@@ -185,9 +185,10 @@ class Model3DETR(nn.Module):
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
         return xyz, features
 
-    def run_encoder(self, point_clouds):
-        xyz, features = self._break_up_pc(point_clouds)
-        pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
+    def run_encoder(self, data_dict):
+        # xyz, features = self._break_up_pc(point_clouds)
+        # don't need this anymore because we already have the pointnet2 encodings
+        # pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
         # xyz: batch x npoints x 3
         # features: batch x channel x npoints
         # inds: batch x npoints
@@ -197,14 +198,14 @@ class Model3DETR(nn.Module):
 
         # xyz points are in batch x npointx channel order
         enc_xyz, enc_features, enc_inds = self.encoder(
-            pre_enc_features, xyz=pre_enc_xyz
+            data_dict["fp2_features"], xyz=data_dict["fp2_xyz"]
         )
         if enc_inds is None:
             # encoder does not perform any downsampling
-            enc_inds = pre_enc_inds
+            enc_inds = data_dict["fp2_inds"]
         else:
             # use gather here to ensure that it works for both FPS and random sampling
-            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.type(torch.int64))
+            enc_inds = torch.gather(data_dict["fp2_inds"], 1, enc_inds.type(torch.int64))
         return enc_xyz, enc_features, enc_inds
 
     def get_box_predictions(self, query_xyz, point_cloud_dims, box_features):
@@ -303,8 +304,8 @@ class Model3DETR(nn.Module):
             "aux_outputs": aux_outputs,  # output from intermediate layers of decoder
         }
 
-    def forward(self, inputs, encoder_only=False):
-        point_clouds = inputs["point_clouds"]
+    def forward(self, data_dict, encoder_only=False):
+        point_clouds = data_dict["point_clouds"]
 
         enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds)
         enc_features = self.encoder_to_decoder_projection(
