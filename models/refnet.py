@@ -15,7 +15,7 @@ class RefNet(nn.Module):
     def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr,
                  input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps",
                  use_lang_classifier=True, use_bidir=False, no_reference=False,
-                 emb_size=300, hidden_size=256, dataset_config=None):
+                 emb_size=300, hidden_size=256, dataset_config=None, proposal_generator="3DETR"):
         super().__init__()
 
         self.num_class = num_class
