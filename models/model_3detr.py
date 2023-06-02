@@ -5,9 +5,9 @@ from functools import partial
 import numpy as np
 import torch
 import torch.nn as nn
-from third_party.pointnet2.pointnet2_modules import PointnetSAModuleVotes
-from third_party.pointnet2.pointnet2_utils import furthest_point_sample
-from utils.pc_util import scale_points, shift_scale_points
+from lib.pointnet2.pointnet2_modules import PointnetSAModuleVotes, PointnetFPModule
+
+from lib.pointnet2.pointnet2_utils import scale_points, shift_scale_points, furthest_point_sample
 
 from models.helpers import GenericMLP
 from models.position_embedding import PositionEmbeddingCoordsSine
@@ -185,10 +185,9 @@ class Model3DETR(nn.Module):
         features = pc[..., 3:].transpose(1, 2).contiguous() if pc.size(-1) > 3 else None
         return xyz, features
 
-    def run_encoder(self, data_dict):
-        # xyz, features = self._break_up_pc(point_clouds)
-        # don't need this anymore because we already have the pointnet2 encodings
-        # pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
+    def run_encoder(self, point_clouds):
+        xyz, features = self._break_up_pc(point_clouds)
+        pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
         # xyz: batch x npoints x 3
         # features: batch x channel x npoints
         # inds: batch x npoints
@@ -198,14 +197,14 @@ class Model3DETR(nn.Module):
 
         # xyz points are in batch x npointx channel order
         enc_xyz, enc_features, enc_inds = self.encoder(
-            data_dict["fp2_features"], xyz=data_dict["fp2_xyz"]
+            pre_enc_features, xyz=pre_enc_xyz
         )
         if enc_inds is None:
             # encoder does not perform any downsampling
-            enc_inds = data_dict["fp2_inds"]
+            enc_inds = pre_enc_inds
         else:
             # use gather here to ensure that it works for both FPS and random sampling
-            enc_inds = torch.gather(data_dict["fp2_inds"], 1, enc_inds.type(torch.int64))
+            enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.type(torch.int64))
         return enc_xyz, enc_features, enc_inds
 
     def get_box_predictions(self, query_xyz, point_cloud_dims, box_features):
@@ -281,7 +280,7 @@ class Model3DETR(nn.Module):
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
-                "center_normalized": center_normalized.contiguous(),
+                "center": center_normalized.contiguous(), # "center_normalized"
                 "center_unnormalized": center_unnormalized,
                 "size_normalized": size_normalized[l],
                 "size_unnormalized": size_unnormalized,
@@ -289,7 +288,7 @@ class Model3DETR(nn.Module):
                 "angle_residual": angle_residual[l],
                 "angle_residual_normalized": angle_residual_normalized[l],
                 "angle_continuous": angle_continuous,
-                "objectness_prob": objectness_prob,
+                "objectness_scores": objectness_prob,
                 "sem_cls_prob": semcls_prob,
                 "box_corners": box_corners,
             }
@@ -307,7 +306,7 @@ class Model3DETR(nn.Module):
     def forward(self, data_dict, encoder_only=False):
         point_clouds = data_dict["point_clouds"]
 
-        enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds)
+        enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds[:, :, :3])
         enc_features = self.encoder_to_decoder_projection(
             enc_features.permute(1, 2, 0)
         ).permute(2, 0, 1)
@@ -319,8 +318,8 @@ class Model3DETR(nn.Module):
             return enc_xyz, enc_features.transpose(0, 1)
 
         point_cloud_dims = [
-            inputs["point_cloud_dims_min"],
-            inputs["point_cloud_dims_max"],
+            data_dict["point_cloud_dims_min"],
+            data_dict["point_cloud_dims_max"],
         ]
         query_xyz, query_embed = self.get_query_embeddings(enc_xyz, point_cloud_dims)
         # query_embed: batch x channel x npoint
@@ -330,14 +329,18 @@ class Model3DETR(nn.Module):
         enc_pos = enc_pos.permute(2, 0, 1)
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
+        # box_features.shape = (8, 256, 8, 256)
         box_features = self.decoder(
             tgt, enc_features, query_pos=query_embed, pos=enc_pos
         )[0]
 
+        data_dict["box_features"] = box_features
         box_predictions = self.get_box_predictions(
             query_xyz, point_cloud_dims, box_features
         )
-        return box_predictions
+        data_dict.update(box_predictions["outputs"])
+        data_dict["aux_outputs"] = box_predictions["aux_outputs"]
+        return data_dict # box_predictions
 
 
 def build_preencoder(args):

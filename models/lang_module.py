@@ -5,7 +5,7 @@ import random
 import copy
 
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-from models.transformer.attention import MultiHeadAttention
+from models.transformer_utils.attention import MultiHeadAttention
 
 
 class LangModule(nn.Module):

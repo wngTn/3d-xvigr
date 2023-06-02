@@ -8,7 +8,7 @@ import os
 
 sys.path.append(os.path.join(os.getcwd(), os.pardir, "lib")) # HACK add the lib folder
 from lib.config import CONF
-from utils.box_util import get_3d_box
+from utils.box_util import flip_axis_to_camera_np, flip_axis_to_camera_tensor, get_3d_box, get_3d_box_batch_np, get_3d_box_batch_tensor
 
 def in_hull(p, hull):
     from scipy.spatial import Delaunay
@@ -96,6 +96,20 @@ class ScannetDatasetConfig(object):
         self.type_mean_size = {}
         for i in range(self.num_size_cluster):
             self.type_mean_size[self.class2type[i]] = self.mean_size_arr[i,:]
+
+        self.num_semcls = 18
+        self.num_angle_bin = 1
+        self.max_num_obj = 64
+
+    def box_parametrization_to_corners(self, box_center_unnorm, box_size, box_angle):
+        box_center_upright = flip_axis_to_camera_tensor(box_center_unnorm)
+        boxes = get_3d_box_batch_tensor(box_size, box_angle, box_center_upright)
+        return boxes
+
+    def box_parametrization_to_corners_np(self, box_center_unnorm, box_size, box_angle):
+        box_center_upright = flip_axis_to_camera_np(box_center_unnorm)
+        boxes = get_3d_box_batch_np(box_size, box_angle, box_center_upright)
+        return boxes
 
     def _get_nyu40id2class(self):
         lines = [line.rstrip() for line in open(os.path.join(CONF.PATH.SCANNET, 'meta_data/scannetv2-labels.combined.tsv'))]

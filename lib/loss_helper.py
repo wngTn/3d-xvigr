@@ -12,13 +12,56 @@ import os
 from utils.nn_distance import nn_distance, huber_loss
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss, SoftmaxRankingLoss2
-from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou, box3d_iou_batch
+from utils.box_util import get_3d_box, get_3d_box_batch, box3d_iou, box3d_iou_batch 
+from lib.criterion import build_criterion
+import matplotlib.pyplot as plt
 
 # FAR_THRESHOLD = 0.6
 FAR_THRESHOLD = 0.3
 NEAR_THRESHOLD = 0.3
 GT_VOTE_FACTOR = 3  # number of GT votes per point
 OBJECTNESS_CLS_WEIGHTS = [0.2, 0.8]  # put larger weights on positive objectness
+
+MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8]) / 256.
+
+def draw_box(ax, corners, color):
+    for i in range(4):
+        ax.plot([corners[i, 0], corners[(i+1)%4, 0]], 
+                [corners[i, 1], corners[(i+1)%4, 1]], 
+                [corners[i, 2], corners[(i+1)%4, 2]], c=color)
+        ax.plot([corners[i+4, 0], corners[(i+1)%4+4, 0]], 
+                [corners[i+4, 1], corners[(i+1)%4+4, 1]], 
+                [corners[i+4, 2], corners[(i+1)%4+4, 2]], c=color)
+        ax.plot([corners[i, 0], corners[i+4, 0]], 
+                [corners[i, 1], corners[i+4, 1]], 
+                [corners[i, 2], corners[i+4, 2]], c=color)
+
+def visualize_boxes(gt_box_corners, gt_box_present, point_cloud, predicted_box_corners, elev=90., azim=-90.):
+    fig = plt.figure(figsize=(10,10))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Plot the point cloud
+    points = point_cloud[0, :, :3]
+    colors = point_cloud[0, :, 3:6]
+    points[..., [0, 1, 2]] = points[..., [0, 2, 1]]  # cam X,Y,Z = depth X,-Z,Y
+    points[..., 1] *= -1
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], c=np.clip(colors + MEAN_COLOR_RGB, 0, 1), s=0.1)
+    
+    # Plot the ground truth boxes
+    for i in range(gt_box_present.shape[1]):
+        if gt_box_present[0, i] == 1:
+            draw_box(ax, gt_box_corners[0, i], color='g')
+            
+    # Plot the predicted boxes
+    for i in range(predicted_box_corners.shape[1]):
+        draw_box(ax, predicted_box_corners[0, i], color='r')
+        
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    ax.view_init(elev=elev, azim=azim)  # Top-down view
+    plt.savefig('top_down_view.png')
 
 
 def compute_vote_loss(data_dict):
@@ -233,18 +276,24 @@ def compute_reference_loss(data_dict, config, no_reference=False):
 
     # predicted bbox
     # pred_ref = data_dict['cluster_ref'].detach().cpu().numpy() # (B,)
-    pred_center = data_dict['center'].detach().cpu().numpy()  # (B,K,3)
-    pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
-    pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2,
-                                         pred_heading_class.unsqueeze(-1))  # B,num_proposal,1
-    pred_heading_class = pred_heading_class.detach().cpu().numpy()  # B,num_proposal
-    pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal
-    pred_size_class = torch.argmax(data_dict['size_scores'], -1)  # B,num_proposal
-    pred_size_residual = torch.gather(data_dict['size_residuals'], 2,
-                                      pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 1,
-                                                                                         3))  # B,num_proposal,1,3
-    pred_size_class = pred_size_class.detach().cpu().numpy()
-    pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal,3
+    if 'heading_scores' in data_dict:
+        proposal_generator = "votenet"
+    else:
+        proposal_generator = "3detr"
+
+    if proposal_generator == "votenet":
+        pred_center = data_dict['center'].detach().cpu().numpy()  # (B,K,3)
+        pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
+        pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2,
+                                            pred_heading_class.unsqueeze(-1))  # B,num_proposal,1
+        pred_heading_class = pred_heading_class.detach().cpu().numpy()  # B,num_proposal
+        pred_heading_residual = pred_heading_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal
+        pred_size_class = torch.argmax(data_dict['size_scores'], -1)  # B,num_proposal
+        pred_size_residual = torch.gather(data_dict['size_residuals'], 2,
+                                        pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1, 1, 1,
+                                                                                            3))  # B,num_proposal,1,3
+        pred_size_class = pred_size_class.detach().cpu().numpy()
+        pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy()  # B,num_proposal,3
 
 
 
@@ -254,7 +303,7 @@ def compute_reference_loss(data_dict, config, no_reference=False):
     gt_size_class_list = data_dict['ref_size_class_label_list'].cpu().numpy()  # B
     gt_size_residual_list = data_dict['ref_size_residual_label_list'].cpu().numpy()  # B,3
     # convert gt bbox parameters to bbox corners
-    batch_size, num_proposals = data_dict['aggregated_vote_features'].shape[:2]
+    batch_size, num_proposals = data_dict['objectness_scores'].shape[:2]
     batch_size, len_nun_max = gt_center_list.shape[:2]
     lang_num = data_dict["lang_num"]
     max_iou_rate_25 = 0
@@ -270,7 +319,17 @@ def compute_reference_loss(data_dict, config, no_reference=False):
     loss = 0.
     gt_labels = np.zeros((batch_size, len_nun_max, num_proposals))
     for i in range(batch_size):
-        objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
+        if proposal_generator == "votenet":
+            objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
+        else:
+            # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
+            # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
+            # objectness_masks = comparison_result.float().cpu().numpy()
+            expanded_objectness_scores = 1 - (data_dict["objectness_scores"].expand(-1, -1, 18))
+            comparison = data_dict["sem_cls_prob"] > expanded_objectness_scores
+            max_comparison = torch.max(comparison, dim=2)[0]
+            objectness_masks = max_comparison.float().cpu().numpy()
+
         gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
                                               gt_heading_residual_list[i],
                                               gt_size_class_list[i], gt_size_residual_list[i])
@@ -279,10 +338,15 @@ def compute_reference_loss(data_dict, config, no_reference=False):
         for j in range(len_nun_max):
             if j < lang_num[i]:
                 # convert the bbox parameters to bbox corners
-                pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i],
-                                                        pred_heading_residual[i],
-                                                        pred_size_class[i], pred_size_residual[i])
-                pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
+                if proposal_generator == "votenet":
+                    pred_obb_batch = config.param2obb_batch(pred_center[i, :, 0:3], pred_heading_class[i],
+                                                            pred_heading_residual[i],
+                                                            pred_size_class[i], pred_size_residual[i])
+                    pred_bbox_batch = get_3d_box_batch(pred_obb_batch[:, 3:6], pred_obb_batch[:, 6], pred_obb_batch[:, 0:3])
+                else:
+                    pred_bbox_batch = data_dict["box_corners"][i].detach().cpu().numpy()
+                gt_bbox_batch = data_dict["ref_box_corners_list"][i].detach().cpu().numpy()
+                # visualize_boxes(gt_bbox_batch[None, :20],np.ones((1, 20)) , data_dict["point_clouds"].detach().cpu().numpy(), pred_bbox_batch[None, ...][:, :3], 40, -121)
                 ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
                 if data_dict["istrain"][0] == 1 and not no_reference and data_dict["random"] < 0.5:
@@ -327,7 +391,7 @@ def compute_lang_classification_loss(data_dict):
     return loss
 
 
-def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=False):
+def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=False, proposal_generator="votenet", args=None):
     """ Loss functions
 
     Args:
@@ -339,44 +403,52 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         data_dict: dict
     """
 
+    # CHECKPOINT 23/05
     # Vote loss
-    vote_loss = compute_vote_loss(data_dict)
+    if proposal_generator == "votenet":
+        vote_loss = compute_vote_loss(data_dict)
 
-    # Obj loss
-    objectness_loss, objectness_label, objectness_mask, object_assignment = compute_objectness_loss(data_dict)
-    num_proposal = objectness_label.shape[1]
-    total_num_proposal = objectness_label.shape[0] * objectness_label.shape[1]
-    data_dict['objectness_label'] = objectness_label
-    data_dict['objectness_mask'] = objectness_mask
-    data_dict['object_assignment'] = object_assignment
-    data_dict['pos_ratio'] = torch.sum(objectness_label.float().cuda()) / float(total_num_proposal)
-    data_dict['neg_ratio'] = torch.sum(objectness_mask.float()) / float(total_num_proposal) - data_dict['pos_ratio']
+        # Obj loss
+        objectness_loss, objectness_label, objectness_mask, object_assignment = compute_objectness_loss(data_dict)
+        num_proposal = objectness_label.shape[1]
+        total_num_proposal = objectness_label.shape[0] * objectness_label.shape[1]
+        data_dict['objectness_label'] = objectness_label
+        data_dict['objectness_mask'] = objectness_mask
+        data_dict['object_assignment'] = object_assignment
+        data_dict['pos_ratio'] = torch.sum(objectness_label.float().cuda()) / float(total_num_proposal)
+        data_dict['neg_ratio'] = torch.sum(objectness_mask.float()) / float(total_num_proposal) - data_dict['pos_ratio']
 
-    # Box loss and sem cls loss
-    center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(
-        data_dict, config)
-    box_loss = center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
+        # Box loss and sem cls loss
+        center_loss, heading_cls_loss, heading_reg_loss, size_cls_loss, size_reg_loss, sem_cls_loss = compute_box_and_sem_cls_loss(
+            data_dict, config)
+        box_loss = center_loss + 0.1 * heading_cls_loss + heading_reg_loss + 0.1 * size_cls_loss + size_reg_loss
 
-    if detection:
-        data_dict['vote_loss'] = vote_loss
-        data_dict['objectness_loss'] = objectness_loss
-        data_dict['center_loss'] = center_loss
-        data_dict['heading_cls_loss'] = heading_cls_loss
-        data_dict['heading_reg_loss'] = heading_reg_loss
-        data_dict['size_cls_loss'] = size_cls_loss
-        data_dict['size_reg_loss'] = size_reg_loss
-        data_dict['sem_cls_loss'] = sem_cls_loss
-        data_dict['box_loss'] = box_loss
+        if detection:
+            data_dict['vote_loss'] = vote_loss
+            data_dict['objectness_loss'] = objectness_loss
+            data_dict['center_loss'] = center_loss
+            data_dict['heading_cls_loss'] = heading_cls_loss
+            data_dict['heading_reg_loss'] = heading_reg_loss
+            data_dict['size_cls_loss'] = size_cls_loss
+            data_dict['size_reg_loss'] = size_reg_loss
+            data_dict['sem_cls_loss'] = sem_cls_loss
+            data_dict['box_loss'] = box_loss
+        else:
+            data_dict['vote_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['objectness_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['center_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['heading_cls_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['heading_reg_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['size_cls_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['size_reg_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
+            data_dict['box_loss'] = torch.zeros(1)[0].cuda()
+
     else:
-        data_dict['vote_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['objectness_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['center_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['heading_cls_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['heading_reg_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['size_cls_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['size_reg_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['sem_cls_loss'] = torch.zeros(1)[0].cuda()
-        data_dict['box_loss'] = torch.zeros(1)[0].cuda()
+        criterion = build_criterion(args, config)
+        model_detr3_loss, model_detr3_loss_dict = criterion(data_dict)
+        data_dict.update(model_detr3_loss_dict)
+    
 
     if reference:
         # Reference loss
@@ -401,11 +473,16 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
     else:
         data_dict["lang_loss"] = torch.zeros(1)[0].cuda()
 
-    # Final loss function
-    loss = data_dict['vote_loss'] + 0.1 * data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1 * data_dict[
-        'sem_cls_loss'] + 0.03 * data_dict["ref_loss"] + 0.03 * data_dict["lang_loss"]
+    if proposal_generator == "votenet":
+        # Final loss function
+        loss = data_dict['vote_loss'] + 0.1 * data_dict['objectness_loss'] + data_dict['box_loss'] + 0.1 * data_dict[
+            'sem_cls_loss'] \
+            + 0.03 * data_dict["ref_loss"] + 0.03 * data_dict["lang_loss"] 
+    else:
+        loss = model_detr3_loss + 0.3 * data_dict["ref_loss"] + 0.3 * data_dict["lang_loss"] 
 
-    loss *= 10  # amplify
+    if proposal_generator == "votenet":
+        loss *= 10  # amplify
 
     data_dict['loss'] = loss
 

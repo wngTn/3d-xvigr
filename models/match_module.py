@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.transformer.attention import MultiHeadAttention
-from models.transformer.utils import PositionWiseFeedForward
+from models.transformer_utils.attention import MultiHeadAttention
+from models.transformer_utils.utils import PositionWiseFeedForward
 import random
 
 
 class MatchModule(nn.Module):
-    def __init__(self, num_proposals=256, lang_size=256, hidden_size=128, lang_num_size=300, det_channel=288*4, head=4, depth=2):
+    def __init__(self, num_proposals=256, lang_size=256, hidden_size=128, lang_num_size=300, det_channel=288*4, head=4, depth=2, proposal_generator="votenet"):
         super().__init__()
         self.use_dist_weight_matrix = True  ## False: initial 3DVG-Transformer
 
@@ -15,6 +15,8 @@ class MatchModule(nn.Module):
         self.lang_size = lang_size
         self.hidden_size = hidden_size
         self.depth = depth - 1
+
+        self.proposal_generator = proposal_generator
 
         self.features_concat = nn.Sequential(
             nn.Conv1d(det_channel, hidden_size, 1),
@@ -48,6 +50,7 @@ class MatchModule(nn.Module):
         """
         if self.use_dist_weight_matrix:
             # Attention Weight
+            # objects_center.shape: (8, 256, 3)
             objects_center = data_dict['center']
             N_K = objects_center.shape[1]
             center_A = objects_center[:, None, :, :].repeat(1, N_K, 1, 1)
@@ -70,16 +73,41 @@ class MatchModule(nn.Module):
 
         # object size embedding
         # print(data_dict.keys())
-        features = data_dict['detr_features']
-        # features = features.permute(1, 2, 0, 3)
-        # B, N = features.shape[:2]
-        # features = features.reshape(B, N, -1).permute(0, 2, 1)
-        features = features.permute(0, 2, 1)
-        features = self.features_concat(features).permute(0, 2, 1)
+        # features.shape = (8, 256, 288)
+        if self.proposal_generator == "votenet":
+            features = data_dict['detr_features']
+            features = features.permute(0, 2, 1)
 
+        elif self.proposal_generator == "3detr":
+            features = data_dict["box_features"]
+            # features = features.permute(2, 1, 0, 3)
+            features = features.permute(2, 0, 3, 1)
+            batch, num_layers, channel, num_queries = (
+                features.shape[0],
+                features.shape[1],
+                features.shape[2],
+                features.shape[3],
+            )
+            # features = features[:, -1, :, :]
+            features = features.reshape(batch, channel * num_layers, num_queries)
+
+        features = self.features_concat(features).permute(0, 2, 1)
         batch_size, num_proposal = features.shape[:2]
 
-        objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2)  # batch_size, num_proposals, 1
+        if len(data_dict["objectness_scores"].shape) < 3:
+            data_dict["objectness_scores"] = data_dict["objectness_scores"].unsqueeze(2)
+
+        # objectness_masks.shape = (8, 256, 1)
+        if self.proposal_generator == "votenet":
+            objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2) # batch_size, num_proposals, 1
+        else:
+            # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
+            # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
+            # objectness_masks = comparison_result.float().unsqueeze(2)
+            expanded_objectness_scores = 1 - (data_dict["objectness_scores"].expand(-1, -1, 18))
+            comparison = data_dict["sem_cls_prob"] > expanded_objectness_scores
+            max_comparison = torch.max(comparison, dim=2)[0]
+            objectness_masks = max_comparison.float().unsqueeze(2)
 
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
@@ -121,10 +149,12 @@ class MatchModule(nn.Module):
         lang_fea = data_dict["lang_fea"]
         # print("features", features.shape, lang_fea.shape)
 
+        # attention_mask.shape = (256, 1, 1, 64)
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
         for _ in range(self.depth):
             feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=dist_weights, way=attention_matrix_way)
+            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
             feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
         # print("feature1", feature1.shape)

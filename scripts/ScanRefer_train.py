@@ -60,12 +60,14 @@ def get_model(args):
         num_heading_bin=DC.num_heading_bin,
         num_size_cluster=DC.num_size_cluster,
         mean_size_arr=DC.mean_size_arr,
+        args = args,
         input_feature_dim=input_channels,
         num_proposal=args.num_proposals,
         use_lang_classifier=(not args.no_lang_cls),
         use_bidir=args.use_bidir,
         no_reference=args.no_reference,
-        dataset_config=DC
+        dataset_config=DC,
+        proposal_generator=args.proposal_generator,
     )
 
     # trainable model
@@ -120,11 +122,18 @@ def get_num_params(model):
 def get_solver(args, dataloader):
     model = get_model(args)
     # different lr for various modules.
-    weight_dict = {
-        'detr': {'lr': 0.0001},
-        'lang': {'lr': 0.0005},
-        'match': {'lr': 0.0005},
-    }
+    if args.proposal_generator == "votenet":
+        weight_dict = {
+            'detr': {'lr': 0.0001},
+            'lang': {'lr': 0.0005},
+            'match': {'lr': 0.0005},
+        }
+    else:
+        weight_dict = {
+            'model': {'lr': 0.000005},
+            'lang': {'lr': 0.0005},
+            'match': {'lr': 0.0005},
+        } 
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
     # params = model.parameters()
     optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
@@ -168,7 +177,8 @@ def get_solver(args, dataloader):
         lr_decay_step=LR_DECAY_STEP,
         lr_decay_rate=LR_DECAY_RATE,
         bn_decay_step=BN_DECAY_STEP,
-        bn_decay_rate=BN_DECAY_RATE
+        bn_decay_rate=BN_DECAY_RATE,
+        args=args,
     )
     num_params = get_num_params(model)
 
@@ -339,6 +349,60 @@ if __name__ == "__main__":
     parser.add_argument("--use_pretrained", type=str,
                         help="Specify the folder name containing the pretrained detection module.")
     parser.add_argument("--use_checkpoint", type=str, help="Specify the checkpoint root", default="")
+
+    ### 3DETR Arguments
+    parser.add_argument("--preenc_npoints", default=2048, type=int)
+    parser.add_argument(
+        "--pos_embed", default="fourier", type=str, choices=["fourier", "sine"]
+    )
+    parser.add_argument("--nqueries", default=256, type=int)
+    ### Encoder
+    parser.add_argument(
+        "--enc_type", default="vanilla", choices=["masked", "maskedv2", "vanilla"]
+    )
+    # Below options are only valid for vanilla encoder
+    parser.add_argument("--enc_nlayers", default=3, type=int)
+    parser.add_argument("--enc_dim", default=256, type=int)
+    parser.add_argument("--enc_ffn_dim", default=128, type=int)
+    parser.add_argument("--enc_dropout", default=0.1, type=float)
+    parser.add_argument("--enc_nhead", default=4, type=int)
+    parser.add_argument("--enc_pos_embed", default=None, type=str)
+    parser.add_argument("--enc_activation", default="relu", type=str)
+
+    ### Decoder
+    parser.add_argument("--dec_nlayers", default=8, type=int)
+    parser.add_argument("--dec_dim", default=256, type=int)
+    parser.add_argument("--dec_ffn_dim", default=256, type=int)
+    parser.add_argument("--dec_dropout", default=0.1, type=float)
+    parser.add_argument("--dec_nhead", default=4, type=int)
+
+    parser.add_argument("--proposal_generator", default="votenet", type=str)
+    parser.add_argument("--mlp_dropout", default=0.3, type=float)
+    parser.add_argument(
+        "--nsemcls",
+        default=3,
+        type=int,
+        help="Number of semantic object classes. Can be inferred from dataset",
+    )
+
+    ##### Set Loss #####
+    ### Matcher
+    parser.add_argument("--matcher_giou_cost", default=2, type=float)
+    parser.add_argument("--matcher_cls_cost", default=1, type=float)
+    parser.add_argument("--matcher_center_cost", default=0, type=float)
+    parser.add_argument("--matcher_objectness_cost", default=0, type=float)
+
+    ### Loss Weights
+    parser.add_argument("--loss_giou_weight", default=0, type=float)
+    parser.add_argument("--loss_sem_cls_weight", default=1, type=float)
+    parser.add_argument(
+        "--loss_no_object_weight", default=0.2, type=float
+    )  # "no object" or "background" class for detection
+    parser.add_argument("--loss_angle_cls_weight", default=0.1, type=float)
+    parser.add_argument("--loss_angle_reg_weight", default=0.5, type=float)
+    parser.add_argument("--loss_center_weight", default=5.0, type=float)
+    parser.add_argument("--loss_size_weight", default=1.0, type=float)
+
     args = parser.parse_args()
 
     # setting

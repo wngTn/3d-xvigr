@@ -18,7 +18,8 @@ from lib.config import CONF
 from utils.pc_utils import random_sampling, rotx, roty, rotz
 from data.scannet.model_util_scannet import rotate_aligned_boxes, ScannetDatasetConfig, rotate_aligned_boxes_along_axis
 import random
-
+from lib.pointnet2.pointnet2_utils import scale_points, shift_scale_points
+from data.scannet.model_util_scannet import ScannetDatasetConfig
 # data setting
 DC = ScannetDatasetConfig()
 MAX_NUM_OBJ = 128
@@ -62,6 +63,10 @@ class ScannetReferenceDataset(Dataset):
         # self.shuffled = False
         self.should_shuffle = shuffle
         # self.shuffle_data()
+        self.center_normalizing_range = [
+            np.zeros((1, 3), dtype=np.float32),
+            np.ones((1, 3), dtype=np.float32),
+        ]
 
     def __len__(self):
         #return len(self.scanrefer_new)
@@ -207,6 +212,9 @@ class ScannetReferenceDataset(Dataset):
         angle_residuals = np.zeros((MAX_NUM_OBJ,))
         size_classes = np.zeros((MAX_NUM_OBJ,))
         size_residuals = np.zeros((MAX_NUM_OBJ, 3))
+        
+        raw_sizes = np.zeros((MAX_NUM_OBJ, 3), dtype=np.float32)
+        raw_angles = np.zeros((MAX_NUM_OBJ,), dtype=np.float32)
 
         ref_box_label_list = []
         ref_center_label_list = []
@@ -214,6 +222,7 @@ class ScannetReferenceDataset(Dataset):
         ref_heading_residual_label_list = []
         ref_size_class_label_list = []
         ref_size_residual_label_list = []
+        ref_box_corners_list = []
 
         if self.split != "test":
             num_bbox = instance_bboxes.shape[0] if instance_bboxes.shape[0] < MAX_NUM_OBJ else MAX_NUM_OBJ
@@ -291,6 +300,35 @@ class ScannetReferenceDataset(Dataset):
             size_classes[0:num_bbox] = class_ind
             size_residuals[0:num_bbox, :] = target_bboxes[0:num_bbox, 3:6] - DC.mean_size_arr[class_ind,:]
 
+            raw_sizes = target_bboxes[:, 3:6]
+            point_cloud_dims_min = point_cloud.min(axis=0)[:3]
+            point_cloud_dims_max = point_cloud.max(axis=0)[:3]
+
+            box_centers = target_bboxes.astype(np.float32)[:, 0:3]
+            box_centers_normalized = shift_scale_points(
+                box_centers[None, ...],
+                src_range=[
+                    point_cloud_dims_min[None, ...],
+                    point_cloud_dims_max[None, ...],
+                ],
+                dst_range=self.center_normalizing_range,
+            )
+            box_centers_normalized = box_centers_normalized.squeeze(0)
+            box_centers_normalized = box_centers_normalized * target_bboxes_mask[..., None]
+            mult_factor = point_cloud_dims_max - point_cloud_dims_min
+            box_sizes_normalized = scale_points(
+                raw_sizes.astype(np.float32)[None, ...],
+                mult_factor=1.0 / mult_factor[None, ...],
+            )
+            box_sizes_normalized = box_sizes_normalized.squeeze(0)
+
+            box_corners = ScannetDatasetConfig.box_parametrization_to_corners_np(None,
+                box_centers[None, ...],
+                raw_sizes.astype(np.float32)[None, ...],
+                raw_angles.astype(np.float32)[None, ...],
+            )
+            box_corners = box_corners.squeeze(0)
+
             # construct the reference target label for each bbox
             for j in range(self.lang_num_max):
                 ref_box_label = np.zeros(MAX_NUM_OBJ)
@@ -302,6 +340,7 @@ class ScannetReferenceDataset(Dataset):
                         ref_heading_residual_label = angle_residuals[i]
                         ref_size_class_label = size_classes[i]
                         ref_size_residual_label = size_residuals[i]
+                        ref_box_corner_label = box_corners[i]
 
                         ref_box_label_list.append(ref_box_label)
                         ref_center_label_list.append(ref_center_label)
@@ -309,6 +348,7 @@ class ScannetReferenceDataset(Dataset):
                         ref_heading_residual_label_list.append(ref_heading_residual_label)
                         ref_size_class_label_list.append(ref_size_class_label)
                         ref_size_residual_label_list.append(ref_size_residual_label)
+                        ref_box_corners_list.append(ref_box_corner_label)
             #ref_center_label_lists = np.array(ref_center_label_list).astype(np.float32)
             #print("ref_center_label",ref_center_label.shape,ref_center_label_lists.shape)
 
@@ -333,7 +373,29 @@ class ScannetReferenceDataset(Dataset):
         if self.split == "train":
             istrain = 1
 
+        
+
+        # ------------------------------- 3DETR ------------------------------
+
+
         data_dict = {}
+
+        data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
+        data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
+
+        data_dict["gt_box_corners"] = box_corners.astype(np.float32)
+        # already in data_dict["center_label"]
+        # data_dict["gt_box_centers"] = box_centers.astype(np.float32)
+        data_dict["gt_box_centers_normalized"] = box_centers_normalized.astype(
+            np.float32
+        )
+        data_dict["gt_box_sizes"] = raw_sizes.astype(np.float32)
+        data_dict["gt_box_sizes_normalized"] = box_sizes_normalized.astype(np.float32)
+        data_dict["gt_angle_class_label"] = angle_classes.astype(np.int64)
+        data_dict["gt_angle_residual_label"] = angle_residuals.astype(np.float32)
+
+        data_dict["gt_box_angles"] = raw_angles.astype(np.float32)
+
         data_dict["point_clouds"] = point_cloud.astype(np.float32) # point cloud data including features
         data_dict["unk"] = unk.astype(np.float32)
 
@@ -345,6 +407,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["size_residual_label"] = size_residuals.astype(np.float32) # (MAX_NUM_OBJ, 3)
         data_dict["num_bbox"] = np.array(num_bbox).astype(np.int64)
         data_dict["sem_cls_label"] = target_bboxes_semcls.astype(np.int64) # (MAX_NUM_OBJ,) semantic class index
+        # in 3DETR = gt_box_present
         data_dict["box_label_mask"] = target_bboxes_mask.astype(np.float32) # (MAX_NUM_OBJ) as 0/1 with 1 indicating a unique box
         data_dict["vote_label"] = point_votes.astype(np.float32)
         data_dict["vote_label_mask"] = point_votes_mask.astype(np.int64)
@@ -366,6 +429,7 @@ class ScannetReferenceDataset(Dataset):
         data_dict["ref_heading_residual_label_list"] = np.array(ref_heading_residual_label_list).astype(np.int64)
         data_dict["ref_size_class_label_list"] = np.array(ref_size_class_label_list).astype(np.int64)
         data_dict["ref_size_residual_label_list"] = np.array(ref_size_residual_label_list).astype(np.float32)
+        data_dict["ref_box_corners_list"] = np.array(ref_box_corners_list).astype(np.float32)
         data_dict["object_id_list"] = np.array(object_id_list).astype(np.int64)
         data_dict["ann_id_list"] = np.array(ann_id_list).astype(np.int64)
         data_dict["object_cat_list"] = np.array(object_cat_list).astype(np.int64)

@@ -59,9 +59,25 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     """
 
     #batch_size, num_words, _ = data_dict["lang_feat"].shape
+    if 'heading_scores' in data_dict:
+        proposal_generator = "votenet"
+    else:
+        proposal_generator = "3detr"
 
-    objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()
-    objectness_labels_batch = data_dict['objectness_label'].long()
+    if proposal_generator == "votenet":
+        objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long() # shape: [8, 256]
+    else:
+        # First, we get the maximum values along the third dimension (i.e., across the 18 values) in sem_cls_prob
+        # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
+        # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
+        # objectness_preds_batch = comparison_result.long()
+        expanded_objectness_scores = 1 - (data_dict["objectness_scores"].expand(-1, -1, 18))
+        comparison = data_dict["sem_cls_prob"] > expanded_objectness_scores
+        max_comparison = torch.max(comparison, dim=2)[0]
+        objectness_preds_batch = max_comparison.long()
+
+    if proposal_generator == "votenet":
+        objectness_labels_batch = data_dict['objectness_label'].long()
 
     if post_processing:
         _ = parse_predictions(data_dict, post_processing)
@@ -69,14 +85,17 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
 
         # construct valid mask
         pred_masks = (nms_masks * objectness_preds_batch == 1).float()
-        label_masks = (objectness_labels_batch == 1).float()
+        if proposal_generator == "votenet":
+            label_masks = (objectness_labels_batch == 1).float()
     else:
         # construct valid mask
-        pred_masks = (objectness_preds_batch == 1).float()
-        label_masks = (objectness_labels_batch == 1).float()
+        pred_masks = (objectness_preds_batch == 1).float() # shape: [8, 256]
+        if proposal_generator == "votenet":
+            label_masks = (objectness_labels_batch == 1).float()
 
     #print("pred_masks", pred_masks.shape, label_masks.shape)
     batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
+    # 128 -> (128, 256) repeated
     cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
 
     preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
@@ -130,7 +149,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         # store the calibrated predictions and masks
         #data_dict['cluster_ref'] = data_dict['cluster_ref'] * pred_masks
 
-    if use_oracle:
+    if use_oracle and proposal_generator == "votenet":
         pred_center = data_dict['center_label']  # (B,MAX_NUM_OBJ,3)
         pred_heading_class = data_dict['heading_class_label']  # B,K2
         pred_heading_residual = data_dict['heading_residual_label']  # B,K2
@@ -144,7 +163,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         pred_size_class = torch.gather(pred_size_class, 1, data_dict["object_assignment"])
         pred_size_residual = torch.gather(pred_size_residual, 1,
                                           data_dict["object_assignment"].unsqueeze(2).repeat(1, 1, 3))
-    else:
+    elif proposal_generator == "votenet":
         pred_center = data_dict['center']  # (B,K,3)
         pred_heading_class = torch.argmax(data_dict['heading_scores'], -1)  # B,num_proposal
         pred_heading_residual = torch.gather(data_dict['heading_residuals'], 2,
@@ -159,13 +178,14 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         pred_size_residual = pred_size_residual.squeeze(2)  # B,num_proposal,3
 
     # store
-    data_dict["pred_mask"] = pred_masks
-    data_dict["label_mask"] = label_masks
-    data_dict['pred_center'] = pred_center
-    data_dict['pred_heading_class'] = pred_heading_class
-    data_dict['pred_heading_residual'] = pred_heading_residual
-    data_dict['pred_size_class'] = pred_size_class
-    data_dict['pred_size_residual'] = pred_size_residual
+    if proposal_generator == "votenet":
+        data_dict["pred_mask"] = pred_masks
+        data_dict["label_mask"] = label_masks
+        data_dict['pred_center'] = pred_center
+        data_dict['pred_heading_class'] = pred_heading_class
+        data_dict['pred_heading_residual'] = pred_heading_residual
+        data_dict['pred_size_class'] = pred_size_class
+        data_dict['pred_size_residual'] = pred_size_residual
 
     #print("ref_box_label", data_dict["ref_box_label"].shape, data_dict["ref_box_label_list"].shape)
     #gt_ref = torch.argmax(data_dict["ref_box_label"], 1)
@@ -189,13 +209,18 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         for j in range(len_nun_max):
             if j < lang_num[i]:
                 pred_ref_idx, gt_ref_idx = pred_ref[i][j], gt_ref[i][j]
-                pred_obb = config.param2obb(
-                    pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
-                    pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
-                    pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
-                    pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
-                    pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
-                )
+                if proposal_generator == "votenet":
+                    pred_obb = config.param2obb(
+                        pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
+                        pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
+                        pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
+                    )
+                    pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+                else:
+                    pred_bbox = data_dict["box_corners"][i][pred_ref_idx].detach().cpu().numpy()
+
                 gt_obb = config.param2obb(
                     gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(),
                     gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(),
@@ -203,14 +228,16 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
                     gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
                     gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
                 )
-                pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
+
                 gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
+                if proposal_generator != "votenet":
+                    gt_bbox = data_dict["gt_box_corners"][i][gt_ref_idx].detach().cpu().numpy()
                 iou = eval_ref_one_sample(pred_bbox, gt_bbox)
                 ious.append(iou)
 
                 # NOTE: get_3d_box() will return problematic bboxes
-                pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
-                gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
+                # pred_bbox = construct_bbox_corners(pred_obb[0:3], pred_obb[3:6])
+                # gt_bbox = construct_bbox_corners(gt_obb[0:3], gt_obb[3:6])
                 pred_bboxes.append(pred_bbox)
                 gt_bboxes.append(gt_bbox)
 
@@ -241,15 +268,16 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     # --------------------------------------------
     # Some other statistics
     obj_pred_val = torch.argmax(data_dict['objectness_scores'], 2)  # B,K
-    obj_acc = torch.sum(
-        (obj_pred_val == data_dict['objectness_label'].long()).float() * data_dict['objectness_mask']) / (
-                          torch.sum(data_dict['objectness_mask']) + 1e-6)
-    data_dict['obj_acc'] = obj_acc
-    # detection semantic classification
-    sem_cls_label = torch.gather(data_dict['sem_cls_label'], 1,
-                                 data_dict['object_assignment'])  # select (B,K) from (B,K2)
-    sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1)  # (B,K)
-    sem_match = (sem_cls_label == sem_cls_pred).float()
-    data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
+    if proposal_generator == "votenet":
+        obj_acc = torch.sum(
+            (obj_pred_val == data_dict['objectness_label'].long()).float() * data_dict['objectness_mask']) / (
+                            torch.sum(data_dict['objectness_mask']) + 1e-6)
+        data_dict['obj_acc'] = obj_acc
+        # detection semantic classification
+        sem_cls_label = torch.gather(data_dict['sem_cls_label'], 1,
+                                    data_dict['object_assignment'])  # select (B,K) from (B,K2)
+        sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1)  # (B,K)
+        sem_match = (sem_cls_label == sem_cls_pred).float()
+        data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
 
     return data_dict
