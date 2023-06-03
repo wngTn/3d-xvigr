@@ -56,11 +56,13 @@ def get_model(args, config):
         num_heading_bin=config.num_heading_bin,
         num_size_cluster=config.num_size_cluster,
         mean_size_arr=config.mean_size_arr,
-        num_proposal=args.num_proposals,
+        args = args,
         input_feature_dim=input_channels,
+        num_proposal=args.num_proposals,
         use_lang_classifier=(not args.no_lang_cls),
         use_bidir=args.use_bidir,
         dataset_config=config,
+        proposal_generator=args.proposal_generator,
     ).cuda()
 
     model_name = "model_last.pth" if args.detection else "model.pth"
@@ -76,7 +78,7 @@ def get_scannet_scene_list(split):
     return scene_list
 
 def get_scanrefer(args):
-    if args.detection:
+    if False: # args.detection:
         scene_list = get_scannet_scene_list("val")
         scanrefer = []
         for scene_id in scene_list:
@@ -177,11 +179,13 @@ def eval_ref(args):
                 with torch.no_grad():
                     data = model(data)
                     _, data = get_loss(
-                        data_dict=data, 
-                        config=DC, 
+                        data_dict=data,
+                        config=DC,
                         detection=True,
                         reference=True, 
-                        use_lang_classifier=not args.no_lang_cls
+                        use_lang_classifier=not args.no_lang_cls, 
+                        proposal_generator=args.proposal_generator,
+                        args=args,
                     )
                     data = get_eval(
                         data_dict=data, 
@@ -392,10 +396,15 @@ def eval_det(args):
     
     # init training dataset
     print("preparing data...")
-    scanrefer, scene_list = get_scanrefer(args)
+    # scanrefer, scene_list = get_scanrefer(args)
+
+    # # dataloader
+    # _, dataloader = get_dataloader(args, scanrefer, scene_list, "val", DC)
+    scanrefer, scene_list, scanrefer_val_new = get_scanrefer(args)
 
     # dataloader
-    _, dataloader = get_dataloader(args, scanrefer, scene_list, "val", DC)
+    #_, dataloader = get_dataloader(args, scanrefer, scene_list, "val", DC)
+    _, dataloader = get_dataloader(args, scanrefer, scanrefer_val_new, scene_list, "val", DC)
 
     # model
     model = get_model(args, DC)
@@ -423,17 +432,20 @@ def eval_det(args):
         with torch.no_grad():
             data = model(data)
             _, data = get_loss(
-                data_dict=data, 
-                config=DC, 
+                data_dict=data,
+                config=DC,
                 detection=True,
-                reference=False
+                reference=False, 
+                proposal_generator=args.proposal_generator,
+                args=args,
             )
             data = get_eval(
                 data_dict=data, 
-                config=DC, 
-                reference=False,
+                config=DC,
+                reference=False, 
                 post_processing=POST_DICT
             )
+
 
             sem_acc.append(data["sem_acc"].item())
 
@@ -476,6 +488,59 @@ if __name__ == "__main__":
     parser.add_argument("--use_best", action="store_true", help="Use best bounding boxes as outputs.")
     parser.add_argument("--reference", action="store_true", help="evaluate the reference localization results")
     parser.add_argument("--detection", action="store_true", help="evaluate the object detection results")
+
+        ### 3DETR Arguments
+    parser.add_argument("--preenc_npoints", default=2048, type=int)
+    parser.add_argument(
+        "--pos_embed", default="fourier", type=str, choices=["fourier", "sine"]
+    )
+    parser.add_argument("--nqueries", default=256, type=int)
+    ### Encoder
+    parser.add_argument(
+        "--enc_type", default="vanilla", choices=["masked", "maskedv2", "vanilla"]
+    )
+    # Below options are only valid for vanilla encoder
+    parser.add_argument("--enc_nlayers", default=3, type=int)
+    parser.add_argument("--enc_dim", default=256, type=int)
+    parser.add_argument("--enc_ffn_dim", default=128, type=int)
+    parser.add_argument("--enc_dropout", default=0.1, type=float)
+    parser.add_argument("--enc_nhead", default=4, type=int)
+    parser.add_argument("--enc_pos_embed", default=None, type=str)
+    parser.add_argument("--enc_activation", default="relu", type=str)
+
+    ### Decoder
+    parser.add_argument("--dec_nlayers", default=8, type=int)
+    parser.add_argument("--dec_dim", default=256, type=int)
+    parser.add_argument("--dec_ffn_dim", default=256, type=int)
+    parser.add_argument("--dec_dropout", default=0.1, type=float)
+    parser.add_argument("--dec_nhead", default=4, type=int)
+
+    parser.add_argument("--proposal_generator", default="votenet", type=str)
+    parser.add_argument("--mlp_dropout", default=0.3, type=float)
+    parser.add_argument(
+        "--nsemcls",
+        default=3,
+        type=int,
+        help="Number of semantic object classes. Can be inferred from dataset",
+    )
+
+    ##### Set Loss #####
+    ### Matcher
+    parser.add_argument("--matcher_giou_cost", default=2, type=float)
+    parser.add_argument("--matcher_cls_cost", default=1, type=float)
+    parser.add_argument("--matcher_center_cost", default=0, type=float)
+    parser.add_argument("--matcher_objectness_cost", default=0, type=float)
+
+    ### Loss Weights
+    parser.add_argument("--loss_giou_weight", default=0, type=float)
+    parser.add_argument("--loss_sem_cls_weight", default=1, type=float)
+    parser.add_argument(
+        "--loss_no_object_weight", default=0.2, type=float
+    )  # "no object" or "background" class for detection
+    parser.add_argument("--loss_angle_cls_weight", default=0.1, type=float)
+    parser.add_argument("--loss_angle_reg_weight", default=0.5, type=float)
+    parser.add_argument("--loss_center_weight", default=5.0, type=float)
+    parser.add_argument("--loss_size_weight", default=1.0, type=float)
     args = parser.parse_args()
 
     assert args.lang_num_max == 1, 'lang max num == 1; avoid bugs'

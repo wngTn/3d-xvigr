@@ -50,6 +50,7 @@ ITER_REPORT_TEMPLATE_3DETR = """
 [loss] train_loss_sem_cls: {train_loss_sem_cls}
 [loss] train_loss_center: {train_loss_center}
 [loss] train_loss_size: {train_loss_size}
+[loss] train_lang_acc: {train_lang_acc}
 [sco.] train_ref_acc: {train_ref_acc}
 [sco.] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
 [sco.] train_iou_max_rate_0.25: {train_iou_max_rate_25}, train_iou_max_rate_0.5: {train_iou_max_rate_5}
@@ -66,6 +67,9 @@ EPOCH_REPORT_TEMPLATE_3DETR = """
 [train] train_loss: {train_loss}
 [train] train_ref_loss: {train_ref_loss}
 [train] train_lang_loss: {train_lang_loss}
+[train] train_loss_sem_cls: {train_loss_sem_cls}
+[train] train_loss_center: {train_loss_center}
+[train] train_loss_size: {train_loss_size}
 [train] train_lang_acc: {train_lang_acc}
 [train] train_ref_acc: {train_ref_acc}
 [train] train_iou_rate_0.25: {train_iou_rate_25}, train_iou_rate_0.5: {train_iou_rate_5}
@@ -127,11 +131,13 @@ BEST_REPORT_TEMPLATE_3DETR = """
 --------------------------------------best--------------------------------------
 [best] epoch: {epoch}
 [loss] loss: {loss}
-[loss] train_loss_sem_cls: {loss_sem_cls}
-[loss] train_loss_center: {loss_center}
-[loss] train_loss_size: {loss_size}
 [loss] ref_loss: {ref_loss}
 [loss] lang_loss: {lang_loss}
+[loss] loss_sem_cls: {loss_sem_cls}
+[loss] loss_center: {loss_center}
+[loss] loss_size: {loss_size}
+[loss] lang_acc: {lang_acc}
+[sco.] ref_acc: {ref_acc}
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
 """
 
@@ -189,6 +195,8 @@ class Solver():
                 "loss_sem_cls": float("inf"),
                 "loss_center": float("inf"),
                 "loss_size": float("inf"),
+                "lang_acc": -float("inf"),
+                "ref_acc": -float("inf"),
                 "iou_rate_0.25": -float("inf"),
                 "iou_rate_0.5": -float("inf"),
                 "max_iou_rate_0.25": -float("inf"),
@@ -414,13 +422,13 @@ class Solver():
             self._running_log["loss"] = data_dict["loss"]
 
     def _eval(self, data_dict):
+        data_dict = get_eval(
+            data_dict=data_dict,
+            config=self.config,
+            reference=self.reference,
+            use_lang_classifier=self.use_lang_classifier
+        )
         if self.args.proposal_generator == "votenet":
-            data_dict = get_eval(
-                data_dict=data_dict,
-                config=self.config,
-                reference=self.reference,
-                use_lang_classifier=self.use_lang_classifier
-            )
             # dump
             self._running_log["lang_acc"] = data_dict["lang_acc"].item()
             self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
@@ -432,17 +440,8 @@ class Solver():
             self._running_log["max_iou_rate_0.25"] = np.mean(data_dict["max_iou_rate_0.25"])
             self._running_log["max_iou_rate_0.5"] = np.mean(data_dict["max_iou_rate_0.5"])
         else:
-            data_dict = get_eval(
-                data_dict=data_dict,
-                config=self.config,
-                reference=self.reference,
-                use_lang_classifier=self.use_lang_classifier
-            )
             self._running_log["lang_acc"] = data_dict["lang_acc"].item()
             self._running_log["ref_acc"] = np.mean(data_dict["ref_acc"])
-            # self._running_log["obj_acc"] = data_dict["obj_acc"].item()
-            # self._running_log["pos_ratio"] = data_dict["pos_ratio"].item()
-            # self._running_log["neg_ratio"] = data_dict["neg_ratio"].item()
             self._running_log["iou_rate_0.25"] = np.mean(data_dict["ref_iou_rate_0.25"])
             self._running_log["iou_rate_0.5"] = np.mean(data_dict["ref_iou_rate_0.5"])
             self._running_log["max_iou_rate_0.25"] = np.mean(data_dict["max_iou_rate_0.25"])
@@ -604,6 +603,10 @@ class Solver():
                     self.best["obj_acc"] = np.mean(self.log[phase]["obj_acc"])
                     self.best["pos_ratio"] = np.mean(self.log[phase]["pos_ratio"])
                     self.best["neg_ratio"] = np.mean(self.log[phase]["neg_ratio"])
+                else:
+                    self.best["loss_sem_cls"] = np.mean(self.log[phase]["loss_sem_cls"])
+                    self.best["loss_center"] = np.mean(self.log[phase]["loss_center"])
+                    self.best["loss_size"] = np.mean(self.log[phase]["loss_size"])
                 self.best["lang_acc"] = np.mean(self.log[phase]["lang_acc"])
                 self.best["ref_acc"] = np.mean(self.log[phase]["ref_acc"])
                 self.best["iou_rate_0.25"] = np.mean(self.log[phase]["iou_rate_0.25"])
@@ -830,6 +833,8 @@ class Solver():
                 loss_sem_cls=round(self.best["loss_sem_cls"], 5),
                 loss_center=round(self.best["loss_center"], 5),
                 loss_size=round(self.best["loss_size"], 5),
+                lang_acc=round(self.best["lang_acc"], 5),
+                ref_acc=round(self.best["ref_acc"], 5),
                 iou_rate_25=round(self.best["iou_rate_0.25"], 5),
                 iou_rate_5=round(self.best["iou_rate_0.5"], 5),
             )

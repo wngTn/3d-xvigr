@@ -130,7 +130,7 @@ def get_solver(args, dataloader):
         }
     else:
         weight_dict = {
-            'model': {'lr': 0.000005},
+            'model': {'lr': 0.00001},
             'lang': {'lr': 0.0005},
             'match': {'lr': 0.0005},
         } 

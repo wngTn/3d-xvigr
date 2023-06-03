@@ -53,36 +53,54 @@ def parse_predictions(end_points, config_dict):
             where pred_list_i = [(pred_sem_cls, box_params, box_score)_j]
             where j = 0, ..., num of valid detections - 1 from sample input i
     """
-    pred_center = end_points['center'] # B,num_proposal,3
-    pred_heading_class = torch.argmax(end_points['heading_scores'], -1) # B,num_proposal
-    pred_heading_residual = torch.gather(end_points['heading_residuals'], 2,
-        pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
-    pred_heading_residual.squeeze_(2)
-    pred_size_class = torch.argmax(end_points['size_scores'], -1) # B,num_proposal
-    pred_size_residual = torch.gather(end_points['size_residuals'], 2,
-        pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
-    pred_size_residual.squeeze_(2)
-    pred_sem_cls = torch.argmax(end_points['sem_cls_scores'], -1) # B,num_proposal
-    sem_cls_probs = softmax(end_points['sem_cls_scores'].detach().cpu().numpy()) # B,num_proposal,10
-    pred_sem_cls_prob = np.max(sem_cls_probs,-1) # B,num_proposal
+    if 'heading_scores' in end_points:
+        proposal_generator = "votenet"
+    else:
+        proposal_generator = "3detr"
 
-    num_proposal = pred_center.shape[1] 
-    # Since we operate in upright_depth coord for points, while util functions
-    # assume upright_camera coord.
-    bsize = pred_center.shape[0]
-    pred_corners_3d_upright_camera = np.zeros((bsize, num_proposal, 8, 3))
-    pred_center_upright_camera = flip_axis_to_camera(pred_center.detach().cpu().numpy())
-    for i in range(bsize):
-        for j in range(num_proposal):
-            heading_angle = config_dict['dataset_config'].class2angle(\
-                pred_heading_class[i,j].detach().cpu().numpy(), pred_heading_residual[i,j].detach().cpu().numpy())
-            box_size = config_dict['dataset_config'].class2size(\
-                int(pred_size_class[i,j].detach().cpu().numpy()), pred_size_residual[i,j].detach().cpu().numpy())
-            corners_3d_upright_camera = get_3d_box(box_size, heading_angle, pred_center_upright_camera[i,j,:])
-            pred_corners_3d_upright_camera[i,j] = corners_3d_upright_camera
+    if proposal_generator == "votenet":
+        pred_center = end_points['center'] # B,num_proposal,3
+        pred_heading_class = torch.argmax(end_points['heading_scores'], -1) # B,num_proposal
+        pred_heading_residual = torch.gather(end_points['heading_residuals'], 2,
+            pred_heading_class.unsqueeze(-1)) # B,num_proposal,1
+        pred_heading_residual.squeeze_(2)
+        pred_size_class = torch.argmax(end_points['size_scores'], -1) # B,num_proposal
+        pred_size_residual = torch.gather(end_points['size_residuals'], 2,
+            pred_size_class.unsqueeze(-1).unsqueeze(-1).repeat(1,1,1,3)) # B,num_proposal,1,3
+        pred_size_residual.squeeze_(2)
+        pred_sem_cls = torch.argmax(end_points['sem_cls_scores'], -1) # B,num_proposal
+        sem_cls_probs = softmax(end_points['sem_cls_scores'].detach().cpu().numpy()) # B,num_proposal,10
+        pred_sem_cls_prob = np.max(sem_cls_probs,-1) # B,num_proposal
 
-    K = pred_center.shape[1] # K==num_proposal
-    nonempty_box_mask = np.ones((bsize, K))
+        num_proposal = pred_center.shape[1] 
+        # Since we operate in upright_depth coord for points, while util functions
+        # assume upright_camera coord.
+        bsize = pred_center.shape[0]
+        pred_corners_3d_upright_camera = np.zeros((bsize, num_proposal, 8, 3))
+        pred_center_upright_camera = flip_axis_to_camera(pred_center.detach().cpu().numpy())
+        for i in range(bsize):
+            for j in range(num_proposal):
+                heading_angle = config_dict['dataset_config'].class2angle(\
+                    pred_heading_class[i,j].detach().cpu().numpy(), pred_heading_residual[i,j].detach().cpu().numpy())
+                box_size = config_dict['dataset_config'].class2size(\
+                    int(pred_size_class[i,j].detach().cpu().numpy()), pred_size_residual[i,j].detach().cpu().numpy())
+                corners_3d_upright_camera = get_3d_box(box_size, heading_angle, pred_center_upright_camera[i,j,:])
+                pred_corners_3d_upright_camera[i,j] = corners_3d_upright_camera
+
+        K = pred_center.shape[1] # K==num_proposal
+        nonempty_box_mask = np.ones((bsize, K))
+    else:
+        predicted_boxes = end_points['box_corners']
+        sem_cls_probs = end_points['sem_cls_scores']
+        sem_cls_probs = sem_cls_probs.detach().cpu().numpy()  # B,num_proposal,10
+        pred_sem_cls_prob = np.max(sem_cls_probs, -1)  # B,num_proposal
+        pred_sem_cls = np.argmax(sem_cls_probs, -1)
+
+        pred_corners_3d_upright_camera = predicted_boxes.detach().cpu().numpy()
+
+        K = pred_corners_3d_upright_camera.shape[1]  # K==num_proposal
+        bsize = pred_corners_3d_upright_camera.shape[0]
+        nonempty_box_mask = np.ones((bsize, K))
 
     if config_dict['remove_empty_box']:
         # -------------------------------------
