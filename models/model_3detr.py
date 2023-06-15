@@ -311,7 +311,7 @@ class Model3DETR(nn.Module):
         tgt = torch.zeros_like(query_embed)
 
         # shape = (batch_size * 48, <>, 256)
-        lang_fea = data_dict["lang_feat"]
+        lang_fea = data_dict["lang_fea"]
         # box_features.shape = (8, 256, 8, 256)
         import ipdb; ipdb.set_trace()
         box_features = self.decoder(tgt,
