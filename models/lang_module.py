@@ -32,10 +32,10 @@ class LangModule(nn.Module):
                 nn.Dropout()
             )
 
-        self.fc = nn.Linear(256, 128)
+        self.fc = nn.Linear(256, 256)
         self.dropout = nn.Dropout(p=.1)
-        self.layer_norm = nn.LayerNorm(128)
-        self.mhatt = MultiHeadAttention(d_model=128, d_k=16, d_v=16, h=4, dropout=.1, identity_map_reordering=False,
+        self.layer_norm = nn.LayerNorm(256)
+        self.mhatt = MultiHeadAttention(d_model=256, d_k=16, d_v=16, h=4, dropout=.1, identity_map_reordering=False,
                                         attention_module=None,
                                         attention_module_kwargs=None)
 

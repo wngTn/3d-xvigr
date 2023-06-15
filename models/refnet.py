@@ -68,8 +68,8 @@ class RefNet(nn.Module):
         elif self.proposal_generator=="3detr":
             # Vote aggregation and object proposal
             self.model, _ = build_3detr(args=args, dataset_config=dataset_config)
-            sd = torch.load("scannet_ep1080.pth", map_location=torch.device("cuda:0"))
-            self.model.load_state_dict(sd["model"])
+            # sd = torch.load("scannet_ep1080.pth", map_location=torch.device("cuda:0"))
+            # self.model.load_state_dict(sd["model"])
 
 
         if not no_reference:
@@ -131,26 +131,8 @@ class RefNet(nn.Module):
             data_dict = self.proposal(xyz, features, data_dict)
 
         elif self.proposal_generator=="3detr":
-            data_dict = self.model(data_dict)
-
-        if not self.no_reference:
-            #######################################
-            #                                     #
-            #           LANGUAGE BRANCH           #
-            #                                     #
-            #######################################
-
-            # --------- LANGUAGE ENCODING ---------
+            
             data_dict = self.lang(data_dict)
-
-            #######################################
-            #                                     #
-            #          PROPOSAL MATCHING          #
-            #                                     #
-            #######################################
-
-            # --------- PROPOSAL MATCHING ---------
-            # config for bbox_embedding
-            data_dict = self.match(data_dict)
+            data_dict = self.model(data_dict)
 
         return data_dict
