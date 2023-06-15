@@ -424,6 +424,7 @@ class TransformerDecoderLayer(nn.Module):
         feature0 = tgt.clone()
 
         tgt = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+        query_pos = query_pos[:, None, :].repeat(1, len_nun_max, 1).reshape(8 * len_nun_max, -1)
 
         # Cross Attention with language features
         import ipdb; ipdb.set_trace()
