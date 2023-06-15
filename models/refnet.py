@@ -68,7 +68,7 @@ class RefNet(nn.Module):
         elif self.proposal_generator=="3detr":
             # Vote aggregation and object proposal
             self.model, _ = build_3detr(args=args, dataset_config=dataset_config)
-            sd = torch.load("scannet_ep1080.pth", map_location=torch.device("cuda:0"))
+            sd = torch.load("pretrained_3detr/scannet_ep1080.pth", map_location=torch.device("cuda:0"))
             self.model.load_state_dict(sd["model"])
 
 
