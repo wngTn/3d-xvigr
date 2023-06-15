@@ -417,7 +417,16 @@ class TransformerDecoderLayer(nn.Module):
                                    key_padding_mask=memory_key_padding_mask)[0]
         tgt = tgt + self.dropout2(tgt2)
 
+        # Copy Code from Match Module
+        len_nun_max = 48
+
+        # copy paste
+        feature0 = tgt.clone()
+
+        tgt = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+
         # Cross Attention with language features
+        import ipdb; ipdb.set_trace()
         tgt2 = self.norm3(tgt)
         tgt2, attn = self.cross_attn(query=self.with_pos_embed(tgt2, query_pos),
                                      key=lang_fea,
