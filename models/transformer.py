@@ -432,10 +432,10 @@ class TransformerDecoderLayer(nn.Module):
         import ipdb
         ipdb.set_trace()
         tgt2 = self.norm3(tgt)
-        tgt2, attn = self.cross_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                     key=lang_fea,
-                                     value=lang_fea,
-                                     attn_mask=lang_mask)
+        tgt2, attn = self.cross_attn(self.with_pos_embed(tgt2, query_pos),
+                                     lang_fea,
+                                     lang_fea,
+                                     lang_mask)
         tgt = tgt + self.dropout3(tgt2)
 
         tgt2 = self.norm3(tgt)
