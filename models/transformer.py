@@ -342,7 +342,7 @@ class TransformerDecoderLayer(nn.Module):
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout_attn)
-        self.cross_attn = nn.ModuleList(MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead))
+        self.cross_attn = nn.ModuleList([MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead)])
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
