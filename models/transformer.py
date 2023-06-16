@@ -13,6 +13,7 @@ import torch
 from torch import Tensor, nn
 
 from models.helpers import (ACTIVATION_DICT, NORM_DICT, WEIGHT_INIT_DICT, get_clones)
+from models.transformer_utils.attention import MultiHeadAttention
 
 
 class TransformerEncoder(nn.Module):
@@ -341,6 +342,7 @@ class TransformerDecoderLayer(nn.Module):
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout_attn)
+        self.cross_attn = nn.ModuleList(MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead))
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
@@ -427,7 +429,8 @@ class TransformerDecoderLayer(nn.Module):
         query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
 
         # Cross Attention with language features
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
         tgt2 = self.norm3(tgt)
         tgt2, attn = self.cross_attn(query=self.with_pos_embed(tgt2, query_pos),
                                      key=lang_fea,
