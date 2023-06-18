@@ -411,11 +411,11 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout1(tgt2)
         # Cross Attention with encoder features
         tgt2 = self.norm2(tgt)
-        tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
+        tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
                                    key=self.with_pos_embed(memory, pos),
                                    value=memory,
                                    attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)[0]
+                                   key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
 
         # Copy Code from Match Module
@@ -441,7 +441,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout3(tgt2)
         if return_attn_weights:
-            return tgt, None # attn
+            return tgt, attn
         return tgt, None
 
     def forward(self,
