@@ -122,6 +122,15 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         attns = []
 
+        # Copy Code from Match Module
+        len_nun_max = 48
+
+        # copy paste
+        feature0 = output.clone()
+
+        output = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+        query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+
         for layer in self.layers:
             output, attn = layer(output,
                                  memory,
@@ -404,6 +413,7 @@ class TransformerDecoderLayer(nn.Module):
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None,
                     return_attn_weights: Optional[bool] = False):
+        import ipdb; ipdb.set_trace()
         # Self Attention with the target
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
@@ -417,15 +427,6 @@ class TransformerDecoderLayer(nn.Module):
                                    attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
-
-        # Copy Code from Match Module
-        len_nun_max = 48
-
-        # copy paste
-        feature0 = tgt.clone()
-
-        tgt = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
-        query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
 
         # Cross Attention with language features
         tgt2 = self.norm3(tgt)
