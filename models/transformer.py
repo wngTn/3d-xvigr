@@ -138,7 +138,7 @@ class TransformerDecoder(nn.Module):
                 intermediate.append(self.norm(output))
             if return_attn_weights:
                 attns.append(attn)
-
+        import ipdb; ipdb.set_trace()
         if self.norm is not None:
             output = self.norm(output)
             if self.return_intermediate:
@@ -428,8 +428,6 @@ class TransformerDecoderLayer(nn.Module):
         query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
 
         # Cross Attention with language features
-        import ipdb
-        ipdb.set_trace()
         tgt2 = self.norm3(tgt)
         tgt2 = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos),
                                      lang_fea,
