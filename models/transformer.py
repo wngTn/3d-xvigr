@@ -123,7 +123,7 @@ class TransformerDecoder(nn.Module):
         attns = []
 
         # Copy Code from Match Module
-        len_nun_max = 48
+        len_nun_max = 16
 
         # copy paste
         feature0 = output.clone()
