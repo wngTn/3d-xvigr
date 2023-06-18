@@ -341,7 +341,6 @@ class TransformerDecoderLayer(nn.Module):
             dropout_attn = dropout
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout_attn)
         self.cross_attn = nn.ModuleList([MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead)])
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
@@ -432,7 +431,7 @@ class TransformerDecoderLayer(nn.Module):
         import ipdb
         ipdb.set_trace()
         tgt2 = self.norm3(tgt)
-        tgt2, attn = self.cross_attn(self.with_pos_embed(tgt2, query_pos),
+        tgt2, attn = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos),
                                      lang_fea,
                                      lang_fea,
                                      lang_mask)
