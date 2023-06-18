@@ -129,10 +129,10 @@ class TransformerDecoder(nn.Module):
         feature0 = output.clone()
         feature1 = memory.clone()
 
-        output = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
-        query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
-        memory = feature1[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
-        pos = pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+        output = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, -1, 256)
+        query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, -1, 256)
+        memory = feature1[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, -1, 256)
+        pos = pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, -1, 256)
 
         for layer in self.layers:
             output, attn = layer(output,
