@@ -127,9 +127,12 @@ class TransformerDecoder(nn.Module):
 
         # copy paste
         feature0 = output.clone()
+        feature1 = memory.clone()
 
         output = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
         query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+        memory = feature1[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
+        pos = pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(8 * len_nun_max, 256, -1)
 
         for layer in self.layers:
             output, attn = layer(output,
@@ -348,8 +351,8 @@ class TransformerDecoderLayer(nn.Module):
         super().__init__()
         if dropout_attn is None:
             dropout_attn = dropout
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
         self.cross_attn = nn.ModuleList([MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead)])
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
