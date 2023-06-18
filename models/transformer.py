@@ -431,7 +431,7 @@ class TransformerDecoderLayer(nn.Module):
         import ipdb
         ipdb.set_trace()
         tgt2 = self.norm3(tgt)
-        tgt2, attn = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos),
+        tgt2 = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos),
                                      lang_fea,
                                      lang_fea,
                                      lang_mask)
@@ -441,7 +441,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout3(tgt2)
         if return_attn_weights:
-            return tgt, attn
+            return tgt, None # attn
         return tgt, None
 
     def forward(self,
