@@ -105,7 +105,7 @@ class MatchModule(nn.Module):
             # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
             # objectness_masks = comparison_result.float().unsqueeze(2)
             objectness_scores = 1 - data_dict["objectness_scores"]
-            comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
+            comparison = data_dict["sem_cls_prob"].sum(dim=2)[0] > objectness_scores.squeeze(dim=-1)
             objectness_masks = comparison.float().cpu().numpy()
 
         #features = self.mhatt(features, features, features, proposal_masks)
