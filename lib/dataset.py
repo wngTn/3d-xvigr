@@ -177,6 +177,7 @@ class ScannetReferenceDataset(Dataset):
             main_lang_len_list.append(main_lang_len)
             first_obj_list.append(first_obj)
             unk_list.append(unk)
+        print("lang_feat_list", len(lang_feat_list))
 
         # get pc
         mesh_vertices = self.scene_data[scene_id]["mesh_vertices"]
