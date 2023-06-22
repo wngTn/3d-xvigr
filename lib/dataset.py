@@ -351,7 +351,10 @@ class ScannetReferenceDataset(Dataset):
                         ref_box_corners_list.append(ref_box_corner_label)
             #ref_center_label_lists = np.array(ref_center_label_list).astype(np.float32)
             #print("ref_center_label",ref_center_label.shape,ref_center_label_lists.shape)
-
+            lists_to_pad = [ref_box_label_list, ref_center_label_list, ref_heading_class_label_list, ref_heading_residual_label_list, ref_size_class_label_list, ref_size_residual_label_list, ref_box_corners_list]
+            for lst in lists_to_pad:
+                while len(lst) < self.lang_num_max:
+                    lst.append(lst[-1])
 
         else:
             num_bbox = 1
