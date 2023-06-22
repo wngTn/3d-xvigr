@@ -440,9 +440,11 @@ class TransformerDecoderLayer(nn.Module):
         batch_size = tgt.shape[1]
         # copy paste
         feature0 = tgt.clone()
-        feature0 = feature0.permuate(1, 0, 2)
+        feature0 = feature0.permute(1, 0, 2)
+        pos0 = query_pos.clone()
+        pos0 = pos0.permute(1, 0, 2)
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
-        query_pos_ref = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
+        query_pos_ref = pos0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
         tgt2 = self.norm4(tgt)
         tgt2 = self.cross_attn[0](self.with_pos_embed(tgt_ref, query_pos_ref),
                                      lang_fea,
