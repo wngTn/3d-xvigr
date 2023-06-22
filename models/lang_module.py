@@ -47,6 +47,7 @@ class LangModule(nn.Module):
         word_embs = data_dict["lang_feat_list"]  # B * 32 * MAX_DES_LEN * LEN(300)
         lang_len = data_dict["lang_len_list"]
         batch_size, len_nun_max, max_des_len = word_embs.shape[:3]
+        import ipdb; ipdb.set_trace()
 
         word_embs = word_embs.reshape(batch_size * len_nun_max, max_des_len, -1)
         lang_len = lang_len.reshape(batch_size * len_nun_max)
