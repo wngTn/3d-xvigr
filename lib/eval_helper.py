@@ -71,9 +71,11 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
         # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
         # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
         # objectness_preds_batch = comparison_result.long()
+        expanded_objectness_scores = 1 - (data_dict["objectness_scores"].expand(-1, -1, 18))
+        comparison = data_dict["sem_cls_prob"] > expanded_objectness_scores
         objectness_scores = 1 - data_dict["objectness_scores"]
-        comparison = data_dict["sem_cls_prob"].max(dim=2) > objectness_scores
-        objectness_masks = comparison.float().cpu().numpy()
+        comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
+        objectness_preds_batch = comparison.long()
 
     if proposal_generator == "votenet":
         objectness_labels_batch = data_dict['objectness_label'].long()

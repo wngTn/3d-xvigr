@@ -326,9 +326,9 @@ def compute_reference_loss(data_dict, config, no_reference=False):
             # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
             # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
             # objectness_masks = comparison_result.float().cpu().numpy()
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             objectness_scores = 1 - data_dict["objectness_scores"]
-            comparison = data_dict["sem_cls_prob"].max(dim=2) > objectness_scores
+            comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
             objectness_masks = comparison.float().cpu().numpy()
 
         gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
