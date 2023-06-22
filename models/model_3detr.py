@@ -220,7 +220,8 @@ class Model3DETR(nn.Module):
             box_features.shape[2],
             box_features.shape[3],
         )
-
+        box_features = box_features.reshape(num_layers * batch, channel, num_queries)
+        box_features_ref = box_features_ref.reshape(num_layers * batch * 16, channel, num_queries)
         # import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
