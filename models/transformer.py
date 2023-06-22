@@ -441,8 +441,8 @@ class TransformerDecoderLayer(nn.Module):
         pos0 = pos0.permute(1, 0, 2)
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
         query_pos_ref = pos0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
-        tgt2 = self.norm4(tgt)
-        tgt2 = self.cross_attn[0](self.with_pos_embed(tgt_ref, query_pos_ref),
+        tgt2 = self.norm4(tgt_ref)
+        tgt2 = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos_ref),
                                      lang_fea,
                                      lang_fea,
                                      lang_mask)
