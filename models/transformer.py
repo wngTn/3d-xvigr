@@ -440,6 +440,7 @@ class TransformerDecoderLayer(nn.Module):
         batch_size = tgt.shape[1]
         # copy paste
         feature0 = tgt.clone()
+        feature0 = feature0.permuate(1, 0, 2)
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
         query_pos_ref = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
         tgt2 = self.norm4(tgt)
@@ -448,7 +449,7 @@ class TransformerDecoderLayer(nn.Module):
                                      lang_fea,
                                      lang_mask)
         tgt_ref = tgt + self.dropout4(tgt2)
-        tgt2 = self.norm5(tgt)
+        tgt2 = self.norm5(tgt_ref)
         tgt2 = self.linear4(self.dropout0(self.activation(self.linear3(tgt2))))
         tgt_ref = tgt_ref + self.dropout5(tgt2)
         if return_attn_weights:
