@@ -122,9 +122,6 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         intermediate_ref = []
         attns = []
-        import ipdb; ipdb.set_trace()
-
-
         for layer in self.layers:
             output, output_ref, attn = layer(output,
                                  memory,
@@ -417,7 +414,6 @@ class TransformerDecoderLayer(nn.Module):
                     query_pos: Optional[Tensor] = None,
                     return_attn_weights: Optional[bool] = False):
         # Self Attention with the target
-        import ipdb; ipdb.set_trace()
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
@@ -450,7 +446,7 @@ class TransformerDecoderLayer(nn.Module):
                                      lang_fea,
                                      lang_fea,
                                      lang_mask)
-        tgt_ref = tgt + self.dropout4(tgt2)
+        tgt_ref = tgt_ref + self.dropout4(tgt2)
         tgt2 = self.norm5(tgt_ref)
         tgt2 = self.linear4(self.dropout0(self.activation(self.linear3(tgt2))))
         tgt_ref = tgt_ref + self.dropout5(tgt2)

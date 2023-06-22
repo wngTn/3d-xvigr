@@ -240,6 +240,7 @@ class Model3DETR(nn.Module):
         angle_residual = angle_residual_normalized * (np.pi / angle_residual_normalized.shape[-1])
 
         outputs = []
+        import ipdb; ipdb.set_trace()
         for l in range(num_layers):
             # box processor converts outputs so we can get a 3D bounding box
             (
