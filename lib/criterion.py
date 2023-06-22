@@ -85,9 +85,8 @@ class Matcher(nn.Module):
 
         # objectness cost: batch x nqueries x 1
         if len(outputs["objectness_scores"].shape) < 3:
-            objectness_mat = -outputs["objectness_scores"].unsqueeze(-1)
-        else:
-            objectness_mat = -outputs["objectness_scores"]
+            outputs["objectness_scores"] = outputs["objectness_scores"].unsqueeze(2)
+        objectness_mat = -outputs["objectness_scores"]
 
         # center cost: batch x nqueries x ngt
         center_mat = outputs["center_dist"].detach()
