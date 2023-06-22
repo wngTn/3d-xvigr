@@ -225,7 +225,7 @@ class Model3DETR(nn.Module):
         box_features = box_features.max(dim=2)[0]
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
