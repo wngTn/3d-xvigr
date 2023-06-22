@@ -120,23 +120,13 @@ class TransformerDecoder(nn.Module):
         output = tgt
 
         intermediate = []
+        intermediate_ref = []
         attns = []
         import ipdb; ipdb.set_trace()
-        # Copy Code from Match Module
-        len_nun_max = 16
-        batch_size = output.shape[1]
 
-        # copy paste
-        feature0 = output.clone()
-        feature1 = memory.clone()
-
-        output = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
-        query_pos = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
-        memory = feature1[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
-        pos = pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
 
         for layer in self.layers:
-            output, attn = layer(output,
+            output, output_ref, attn = layer(output,
                                  memory,
                                  lang_fea,
                                  tgt_mask=tgt_mask,
@@ -149,21 +139,25 @@ class TransformerDecoder(nn.Module):
                                  return_attn_weights=return_attn_weights)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
+                intermediate_ref.append(self.norm(output_ref))
             if return_attn_weights:
                 attns.append(attn)
         if self.norm is not None:
             output = self.norm(output)
+            output_ref = self.norm(output_ref)
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
+                intermediate_ref.pop()
+                intermediate_ref.append(output_ref)
 
         if return_attn_weights:
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), attns
+            return torch.stack(intermediate), torch.stack(intermediate_ref), attns
 
-        return output, attns
+        return output, output_ref, attns
 
 
 class MaskedTransformerEncoder(TransformerEncoder):
@@ -351,24 +345,30 @@ class TransformerDecoderLayer(nn.Module):
         super().__init__()
         if dropout_attn is None:
             dropout_attn = dropout
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = nn.ModuleList([MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model// nhead, h=nhead)])
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
         self.norm3 = NORM_DICT[norm_fn_name](d_model)
         self.norm4 = NORM_DICT[norm_fn_name](d_model)
+        self.norm5 = NORM_DICT[norm_fn_name](d_model)
 
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
         self.dropout3 = nn.Dropout(dropout, inplace=False)
         self.dropout4 = nn.Dropout(dropout, inplace=False)
+        self.dropout5 = nn.Dropout(dropout, inplace=False)
 
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout, inplace=False)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.linear3 = nn.Linear(d_model, dim_feedforward)
+        self.dropout0 = nn.Dropout(dropout, inplace=False)
+        self.linear4 = nn.Linear(dim_feedforward, d_model)
 
         self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
@@ -429,21 +429,30 @@ class TransformerDecoderLayer(nn.Module):
                                    attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
-
-        # Cross Attention with language features
-        tgt2 = self.norm3(tgt)
-        tgt2 = self.cross_attn[0](self.with_pos_embed(tgt2, query_pos),
-                                     lang_fea,
-                                     lang_fea,
-                                     lang_mask)
-        tgt = tgt + self.dropout3(tgt2)
-
         tgt2 = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout3(tgt2)
+
+        # Cross Attention with language features
+        # Copy Code from Match Module
+        len_nun_max = 16
+        batch_size = tgt.shape[1]
+        # copy paste
+        feature0 = tgt.clone()
+        tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
+        query_pos_ref = query_pos[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size * len_nun_max, -1, 256)
+        tgt2 = self.norm4(tgt)
+        tgt2 = self.cross_attn[0](self.with_pos_embed(tgt_ref, query_pos_ref),
+                                     lang_fea,
+                                     lang_fea,
+                                     lang_mask)
+        tgt_ref = tgt + self.dropout4(tgt2)
+        tgt2 = self.norm5(tgt)
+        tgt2 = self.linear4(self.dropout0(self.activation(self.linear3(tgt2))))
+        tgt_ref = tgt_ref + self.dropout5(tgt2)
         if return_attn_weights:
-            return tgt, attn
-        return tgt, None
+            return tgt, tgt_ref, attn
+        return tgt, tgt_ref, None
 
     def forward(self,
                 tgt,

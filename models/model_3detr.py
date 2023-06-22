@@ -202,7 +202,7 @@ class Model3DETR(nn.Module):
             enc_inds = torch.gather(pre_enc_inds, 1, enc_inds.type(torch.int64))
         return enc_xyz, enc_features, enc_inds
 
-    def get_box_predictions(self, query_xyz, point_cloud_dims, pre_box_features):
+    def get_box_predictions(self, query_xyz, point_cloud_dims, box_features, box_features_ref):
         """
         Parameters:
             query_xyz: batch x nqueries x 3 tensor of query XYZ coords
@@ -212,24 +212,19 @@ class Model3DETR(nn.Module):
             box_features: num_layers x num_queries x batch x channel
         """
         # box_features change to (num_layers x batch) x channel x num_queries
-        # box_features = box_features.permute(0, 2, 3, 1)
-        num_layers, batch_ref, channel, num_queries = (
-            pre_box_features.shape[0],
-            pre_box_features.shape[1],
-            pre_box_features.shape[2],
-            pre_box_features.shape[3],
+        box_features = box_features.permute(0, 2, 3, 1)
+        num_layers, batch, channel, num_queries = (
+            box_features.shape[0],
+            box_features.shape[1],
+            box_features.shape[2],
+            box_features.shape[3],
         )
-        batch = batch_ref // 16
-        conf_box_features = pre_box_features.reshape(num_layers * batch_ref, channel, num_queries)
-        box_features = pre_box_features.reshape(num_layers, batch, 16, channel, num_queries)
-        box_features = box_features.max(dim=2)[0]
-        box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
         # import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        ref_conf_logits = self.mlp_heads["reference_confidence_head"](conf_box_features).transpose(1, 2)
+        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
@@ -237,7 +232,7 @@ class Model3DETR(nn.Module):
 
         # reshape outputs to num_layers x batch x nqueries x noutput
         cls_logits = cls_logits.reshape(num_layers, batch, num_queries, -1)
-        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
+        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch * 16, num_queries, -1)
         center_offset = center_offset.reshape(num_layers, batch, num_queries, -1)
         size_normalized = size_normalized.reshape(num_layers, batch, num_queries, -1)
         angle_logits = angle_logits.reshape(num_layers, batch, num_queries, -1)
@@ -319,15 +314,15 @@ class Model3DETR(nn.Module):
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
         # box_features.shape = (8, 256, 8, 256)
-        box_features = self.decoder(tgt,
+        box_features, box_features_ref = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,
                                     lang_mask=data_dict["attention_mask"],
                                     query_pos=query_embed,
-                                    pos=enc_pos)[0]
+                                    pos=enc_pos)[:2]
 
         data_dict["box_features"] = box_features
-        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features)
+        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_features_ref)
         data_dict.update(box_predictions["outputs"])
         data_dict["aux_outputs"] = box_predictions["aux_outputs"]
         return data_dict  # box_predictions
