@@ -222,14 +222,14 @@ class Model3DETR(nn.Module):
         batch = batch_ref // 16
         conf_box_features = pre_box_features.reshape(num_layers * batch_ref, channel, num_queries)
         box_features = pre_box_features.reshape(num_layers, batch, 16, channel, num_queries)
-        box_features = box_features.max(dim=2)
+        box_features = box_features.max(dim=2)[0]
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
         import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features).transpose(1, 2)
+        ref_conf_logits = self.mlp_heads["reference_confidence_head"](conf_box_features).transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
@@ -319,7 +319,6 @@ class Model3DETR(nn.Module):
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
         # box_features.shape = (8, 256, 8, 256)
-        import ipdb; ipdb.set_trace()
         box_features = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,

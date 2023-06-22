@@ -150,8 +150,6 @@ class TransformerDecoder(nn.Module):
                 intermediate.append(self.norm(output))
             if return_attn_weights:
                 attns.append(attn)
-            import ipdb; ipdb.set_trace()
-        import ipdb; ipdb.set_trace()
         if self.norm is not None:
             output = self.norm(output)
             if self.return_intermediate:
