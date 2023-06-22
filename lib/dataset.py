@@ -156,6 +156,16 @@ class ScannetReferenceDataset(Dataset):
                 main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
                 first_obj = self.lang_main[scene_id][str(object_id)][ann_id]["first_obj"]
                 unk = self.lang_main[scene_id][str(object_id)][ann_id]["unk"]
+            else: # if i >= lang_num, we initialize variables with the last known values
+                object_id = object_id_list[-1]
+                object_name = object_name_list[-1]
+                ann_id = ann_id_list[-1]
+                lang_feat = lang_feat_list[-1]
+                lang_len = lang_len_list[-1]
+                main_lang_feat = main_lang_feat_list[-1]
+                main_lang_len = main_lang_len_list[-1]
+                first_obj = first_obj_list[-1]
+                unk = unk_list[-1]
 
             object_id_list.append(object_id)
             object_name_list.append(object_name)
@@ -351,10 +361,6 @@ class ScannetReferenceDataset(Dataset):
                         ref_box_corners_list.append(ref_box_corner_label)
             #ref_center_label_lists = np.array(ref_center_label_list).astype(np.float32)
             #print("ref_center_label",ref_center_label.shape,ref_center_label_lists.shape)
-            lists_to_pad = [ref_box_label_list, ref_center_label_list, ref_heading_class_label_list, ref_heading_residual_label_list, ref_size_class_label_list, ref_size_residual_label_list, ref_box_corners_list]
-            for lst in lists_to_pad:
-                while len(lst) < self.lang_num_max:
-                    lst.append(lst[-1])
 
         else:
             num_bbox = 1
