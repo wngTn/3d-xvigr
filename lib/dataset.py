@@ -156,16 +156,6 @@ class ScannetReferenceDataset(Dataset):
                 main_lang_len = self.lang_main[scene_id][str(object_id)][ann_id]["len"]
                 first_obj = self.lang_main[scene_id][str(object_id)][ann_id]["first_obj"]
                 unk = self.lang_main[scene_id][str(object_id)][ann_id]["unk"]
-            else: # if i >= lang_num, we initialize variables with the last known values
-                object_id = object_id_list[-1]
-                object_name = object_name_list[-1]
-                ann_id = ann_id_list[-1]
-                lang_feat = lang_feat_list[-1]
-                lang_len = lang_len_list[-1]
-                main_lang_feat = main_lang_feat_list[-1]
-                main_lang_len = main_lang_len_list[-1]
-                first_obj = first_obj_list[-1]
-                unk = unk_list[-1]
 
             object_id_list.append(object_id)
             object_name_list.append(object_name)
@@ -177,7 +167,6 @@ class ScannetReferenceDataset(Dataset):
             main_lang_len_list.append(main_lang_len)
             first_obj_list.append(first_obj)
             unk_list.append(unk)
-        print("lang_feat_list", len(lang_feat_list))
 
         # get pc
         mesh_vertices = self.scene_data[scene_id]["mesh_vertices"]
