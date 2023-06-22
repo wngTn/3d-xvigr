@@ -104,10 +104,9 @@ class MatchModule(nn.Module):
             # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
             # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
             # objectness_masks = comparison_result.float().unsqueeze(2)
-            expanded_objectness_scores = 1 - (data_dict["objectness_scores"].expand(-1, -1, 18))
-            comparison = data_dict["sem_cls_prob"] > expanded_objectness_scores
-            max_comparison = torch.max(comparison, dim=2)[0]
-            objectness_masks = max_comparison.float().unsqueeze(2)
+            objectness_scores = 1 - data_dict["objectness_scores"]
+            comparison = data_dict["sem_cls_prob"].max(dim=2) > objectness_scores
+            objectness_masks = comparison.float().cpu().numpy()
 
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
