@@ -212,7 +212,6 @@ class Model3DETR(nn.Module):
             box_features: num_layers x num_queries x batch x channel
         """
         # box_features change to (num_layers x batch) x channel x num_queries
-        import ipdb; ipdb.set_trace()
         box_features = box_features.permute(0, 2, 3, 1)
         num_layers, batch, channel, num_queries = (
             box_features.shape[0],
@@ -242,7 +241,6 @@ class Model3DETR(nn.Module):
         angle_residual = angle_residual_normalized * (np.pi / angle_residual_normalized.shape[-1])
 
         outputs = []
-        import ipdb; ipdb.set_trace()
         for l in range(num_layers):
             # box processor converts outputs so we can get a 3D bounding box
             (
