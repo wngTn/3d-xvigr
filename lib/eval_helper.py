@@ -70,7 +70,7 @@ def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
                           [3, 7]]))
             o3d.io.write_line_set(os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"), o3d_gt_box)
             print("Dumped gt box to " + os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"))
-    if False:
+    if pred_boxes is not None:
         for j, pred_box in enumerate(pred_boxes):
             o3d_pred_box = o3d.geometry.LineSet()
             o3d_pred_box.points = o3d.utility.Vector3dVector(pred_box)
