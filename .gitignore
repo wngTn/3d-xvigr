@@ -1,5 +1,7 @@
 .idea
 # data/*
+lib/pointnet2/_ext_src/*
+**/**/.DS_Store
 
 # dataset
 data/ScanRefer*
