@@ -322,6 +322,7 @@ class Model3DETR(nn.Module):
         lang_attention_mask = data_dict["attention_mask"].reshape(128, -1)
         lang_attention_mask = lang_attention_mask.unsqueeze(1)  # Now shape is (128, 1, 50)
         lang_attention_mask = lang_attention_mask.repeat(1, 256, 1)  # Now shape is (128, 256, 50)
+        lang_attention_mask = lang_attention_mask.repeat(4, 1, 1)
         box_features, box_features_ref = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,
