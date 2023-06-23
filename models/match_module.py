@@ -49,7 +49,7 @@ class MatchModule(nn.Module):
         Returns:
             scores: (B,num_proposal,2+3+NH*2+NS*4) 
         """
-        if self.use_dist_weight_matrix:
+        if False: # self.use_dist_weight_matrix:
             # Attention Weight
             # objects_center.shape: (8, 256, 3)
             objects_center = data_dict['center']
@@ -119,28 +119,28 @@ class MatchModule(nn.Module):
 
         # copy paste
         feature0 = features.clone()
-        if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
-            obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
-            obj_lens = torch.zeros(batch_size, dtype=torch.int).cuda()
-            for i in range(batch_size):
-                obj_mask = torch.where(obj_masks[i, :] == True)[0]
-                obj_len = obj_mask.shape[0]
-                obj_lens[i] = obj_len
+        # if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
+        #     obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
+        #     obj_lens = torch.zeros(batch_size, dtype=torch.int).cuda()
+        #     for i in range(batch_size):
+        #         obj_mask = torch.where(obj_masks[i, :] == True)[0]
+        #         obj_len = obj_mask.shape[0]
+        #         obj_lens[i] = obj_len
 
-            obj_masks_reshape = obj_masks.reshape(batch_size*num_proposal)
-            obj_features = features.reshape(batch_size*num_proposal, -1)
-            obj_mask = torch.where(obj_masks_reshape[:] == True)[0]
-            total_len = obj_mask.shape[0]
-            obj_features = obj_features[obj_mask, :].repeat(2,1)  # total_len, hidden_size
-            j = 0
-            for i in range(batch_size):
-                obj_mask = torch.where(obj_masks[i, :] == False)[0]
-                obj_len = obj_mask.shape[0]
-                j += obj_lens[i]
-                if obj_len < total_len - obj_lens[i]:
-                    feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
-                else:
-                    feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
+        #     obj_masks_reshape = obj_masks.reshape(batch_size*num_proposal)
+        #     obj_features = features.reshape(batch_size*num_proposal, -1)
+        #     obj_mask = torch.where(obj_masks_reshape[:] == True)[0]
+        #     total_len = obj_mask.shape[0]
+        #     obj_features = obj_features[obj_mask, :].repeat(2,1)  # total_len, hidden_size
+        #     j = 0
+        #     for i in range(batch_size):
+        #         obj_mask = torch.where(obj_masks[i, :] == False)[0]
+        #         obj_len = obj_mask.shape[0]
+        #         j += obj_lens[i]
+        #         if obj_len < total_len - obj_lens[i]:
+        #             feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
+        #         else:
+        #             feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
 
         feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         if dist_weights is not None:
