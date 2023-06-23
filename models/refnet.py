@@ -37,7 +37,7 @@ class RefNet(nn.Module):
 
         # --------- PROPOSAL GENERATION ---------
         # Backbone point feature learning
-        self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
+        # self.backbone_net = Pointnet2Backbone(input_feature_dim=self.input_feature_dim)
 
         # Vote aggregation and object proposal
         config_transformer = None
