@@ -260,7 +260,7 @@ class Model3DETR(nn.Module):
         )
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
         # box_features_ref = box_features_ref.reshape(num_layers * batch * 16, channel, num_queries)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
@@ -298,7 +298,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits[l])
+                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
