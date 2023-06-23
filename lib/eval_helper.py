@@ -285,8 +285,8 @@ def get_eval(data_dict,
                 others.append(flag)
         import ipdb; ipdb.set_trace()
         global iter_id
-        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], pred_bboxes[:-lang_num[i]],
-                     gt_bboxes[:-lang_num[i]])
+        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], pred_bboxes[-lang_num[i]:],
+                     gt_bboxes[-lang_num[i]:])
         iter_id += 1
     # lang
     if reference and use_lang_classifier:
