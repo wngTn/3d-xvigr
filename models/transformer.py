@@ -414,6 +414,7 @@ class TransformerDecoderLayer(nn.Module):
                     query_pos: Optional[Tensor] = None,
                     return_attn_weights: Optional[bool] = False):
         # Self Attention with the target
+        import ipdb; ipdb.set_trace()
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
