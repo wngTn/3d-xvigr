@@ -272,7 +272,7 @@ class Model3DETR(nn.Module):
 
         # reshape outputs to num_layers x batch x nqueries x noutput
         cls_logits = cls_logits.reshape(num_layers, batch, num_queries, -1)
-        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch * 16, num_queries, -1)
+        # ref_conf_logits = ref_conf_logits.reshape(num_layers, batch * 16, num_queries, -1)
         center_offset = center_offset.reshape(num_layers, batch, num_queries, -1)
         size_normalized = size_normalized.reshape(num_layers, batch, num_queries, -1)
         angle_logits = angle_logits.reshape(num_layers, batch, num_queries, -1)
@@ -370,7 +370,7 @@ class Model3DETR(nn.Module):
                                     pos=enc_pos)[:2]
 
         data_dict["box_features"] = box_features
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         ### EXPERIMENT ###
         dist_weights = None
         attention_matrix_way = 'mul'
