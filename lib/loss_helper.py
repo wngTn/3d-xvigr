@@ -321,6 +321,7 @@ def compute_reference_loss(data_dict, config, no_reference=False):
     loss = 0.
     gt_labels = np.zeros((batch_size, len_nun_max, num_proposals))
     for i in range(batch_size):
+        data_dict["random"] = random.random()
         if proposal_generator == "votenet":
             objectness_masks = data_dict['objectness_scores'].max(2)[1].float().cpu().numpy() # batch_size, num_proposals
         else:
@@ -351,7 +352,7 @@ def compute_reference_loss(data_dict, config, no_reference=False):
                 # visualize_boxes(gt_bbox_batch[None, :20],np.ones((1, 20)) , data_dict["point_clouds"].detach().cpu().numpy(), pred_bbox_batch[None, ...][:, :3], 40, -121)
                 ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
-                data_dict["random"] = random.random()
+                
                 if data_dict["istrain"][0] == 1 and not no_reference and data_dict["random"] < 0.5:
                     ious = ious * objectness_masks[i]
 
@@ -482,7 +483,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
             'sem_cls_loss'] \
             + 0.03 * data_dict["ref_loss"] + 0.03 * data_dict["lang_loss"] 
     else:
-        loss = model_detr3_loss + 0.3 * data_dict["ref_loss"] + 0.3 * data_dict["lang_loss"] 
+        loss = model_detr3_loss + data_dict["ref_loss"] + 0.3 * data_dict["lang_loss"] 
 
     if proposal_generator == "votenet":
         loss *= 10  # amplify
