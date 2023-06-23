@@ -312,6 +312,7 @@ class Model3DETR(nn.Module):
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
 
+        import ipdb; ipdb.set_trace()
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
         # shape = (seq_len, batch_size * 48, 256)
