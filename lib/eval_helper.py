@@ -54,7 +54,9 @@ def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
 
     if point_cloud is not None:
         o3d_point_cloud = o3d.geometry.PointCloud()
-        o3d_point_cloud.points = o3d.utility.Vector3dVector(point_cloud[:, 0:3])
+        point_cloud = point_cloud[:, 0:3]
+        point_cloud = point_cloud[:,[0,2,1]]
+        o3d_point_cloud.points = o3d.utility.Vector3dVector(point_cloud)
         o3d.io.write_point_cloud(os.path.join(dump_dir, "point_cloud.ply"), o3d_point_cloud)
         print("Dumped point cloud to " + os.path.join(dump_dir, "point_cloud.ply"))
     if gt_boxes is not None:
