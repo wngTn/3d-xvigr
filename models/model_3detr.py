@@ -172,7 +172,7 @@ class Model3DETR(nn.Module):
         semcls_head = mlp_func(output_dim=dataset_config.num_semcls + 1)
 
         # Confidence Scores of the boxes
-        reference_confidence_head = mlp_func(output_dim=1)
+        reference_confidence_head = self.match# mlp_func(output_dim=1)
 
         # geometry of the box
         center_head = mlp_func(output_dim=3)
@@ -250,7 +250,7 @@ class Model3DETR(nn.Module):
             box_features.shape[3],
         )
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
-        box_features_ref = box_features_ref.reshape(num_layers * batch * 16, channel, num_queries)
+        # box_features_ref = box_features_ref.reshape(num_layers * batch * 16, channel, num_queries)
         # import ipdb; ipdb.set_trace()
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
