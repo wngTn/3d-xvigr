@@ -172,7 +172,16 @@ class Model3DETR(nn.Module):
         semcls_head = mlp_func(output_dim=dataset_config.num_semcls + 1)
 
         # Confidence Scores of the boxes
-        reference_confidence_head = self.match# mlp_func(output_dim=1)
+        hidden_size = 256
+        reference_confidence_head = nn.Sequential(
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, 1, 1)
+        ) # self.match# mlp_func(output_dim=1)
 
         # geometry of the box
         center_head = mlp_func(output_dim=3)
