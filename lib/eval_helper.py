@@ -1,5 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
-# 
+#
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
@@ -9,6 +9,7 @@ import numpy as np
 import sys
 import os
 
+import open3d as o3d
 from utils.nn_distance import nn_distance, huber_loss
 from lib.ap_helper import parse_predictions
 from lib.loss import SoftmaxRankingLoss
@@ -36,15 +37,57 @@ def construct_bbox_corners(center, box_size):
     y_corners = [sy / 2, -sy / 2, -sy / 2, sy / 2, sy / 2, -sy / 2, -sy / 2, sy / 2]
     z_corners = [sz / 2, sz / 2, sz / 2, sz / 2, -sz / 2, -sz / 2, -sz / 2, -sz / 2]
     corners_3d = np.vstack([x_corners, y_corners, z_corners])
-    corners_3d[0, :] = corners_3d[0, :] + center[0];
-    corners_3d[1, :] = corners_3d[1, :] + center[1];
-    corners_3d[2, :] = corners_3d[2, :] + center[2];
+    corners_3d[0, :] = corners_3d[0, :] + center[0]
+    corners_3d[1, :] = corners_3d[1, :] + center[1]
+    corners_3d[2, :] = corners_3d[2, :] + center[2]
     corners_3d = np.transpose(corners_3d)
 
     return corners_3d
 
-def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle=False, use_cat_rand=False,
-             use_best=False, post_processing=None):
+
+def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
+    """
+    Dump the results to a temp folder using Open3D for visualization
+    """
+    dump_dir = os.path.join("temp_vis", str(iter_id), str(batch_num))
+    os.makedirs(dump_dir, exist_ok=True)
+
+    if point_cloud is not None:
+        o3d_point_cloud = o3d.geometry.PointCloud()
+        o3d_point_cloud.points = o3d.utility.Vector3dVector(point_cloud[:, 0:3])
+        o3d.io.write_point_cloud(os.path.join(dump_dir, "point_cloud.ply"), o3d_point_cloud)
+        print("Dumped point cloud to " + os.path.join(dump_dir, "point_cloud.ply"))
+    if gt_boxes is not None:
+        for i, gt_box in enumerate(gt_boxes):
+            o3d_gt_box = o3d.geometry.LineSet()
+            o3d_gt_box.points = o3d.utility.Vector3dVector(gt_box)
+            o3d_gt_box.lines = o3d.utility.Vector2iVector(
+                np.array([[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6],
+                          [3, 7]]))
+            o3d.io.write_line_set(os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"), o3d_gt_box)
+            print("Dumped gt box to " + os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"))
+    if pred_boxes is not None:
+        for j, pred_box in enumerate(pred_box):
+            o3d_pred_box = o3d.geometry.LineSet()
+            o3d_pred_box.points = o3d.utility.Vector3dVector(pred_box)
+            o3d_pred_box.lines = o3d.utility.Vector2iVector(
+                np.array([[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6],
+                          [3, 7]]))
+            o3d.io.write_line_set(os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"), o3d_pred_box)
+            print("Dumped pred box to " + os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"))
+
+
+iter_id = 0
+
+
+def get_eval(data_dict,
+             config,
+             reference,
+             use_lang_classifier=False,
+             use_oracle=False,
+             use_cat_rand=False,
+             use_best=False,
+             post_processing=None):
     """ Loss functions
 
     Args:
@@ -58,14 +101,13 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     """
 
     #batch_size, num_words, _ = data_dict["lang_feat"].shape
-    import ipdb; ipdb.set_trace()
     if 'heading_scores' in data_dict:
         proposal_generator = "votenet"
     else:
         proposal_generator = "3detr"
 
     if proposal_generator == "votenet":
-        objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long() # shape: [8, 256]
+        objectness_preds_batch = torch.argmax(data_dict['objectness_scores'], 2).long()  # shape: [8, 256]
     else:
         # First, we get the maximum values along the third dimension (i.e., across the 18 values) in sem_cls_prob
         # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
@@ -88,19 +130,19 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             label_masks = (objectness_labels_batch == 1).float()
     else:
         # construct valid mask
-        pred_masks = (objectness_preds_batch == 1).float() # shape: [8, 256]
+        pred_masks = (objectness_preds_batch == 1).float()  # shape: [8, 256]
         if proposal_generator == "votenet":
             label_masks = (objectness_labels_batch == 1).float()
 
     #print("pred_masks", pred_masks.shape, label_masks.shape)
     batch_size, len_nun_max = data_dict['ref_center_label_list'].shape[:2]
     # 128 -> (128, 256) repeated
-    cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1,pred_masks.shape[1])
+    cluster_preds = torch.argmax(data_dict["cluster_ref"], 1).long().unsqueeze(1).repeat(1, pred_masks.shape[1])
 
     preds = torch.zeros(data_dict["cluster_ref"].shape).cuda()
     preds = preds.scatter_(1, cluster_preds, 1)
     cluster_preds = preds
-    cluster_labels = data_dict["cluster_labels"].reshape(batch_size*len_nun_max, -1).float()
+    cluster_labels = data_dict["cluster_labels"].reshape(batch_size * len_nun_max, -1).float()
     #print(cluster_labels.shape, '<< cluster labels shape')
     #cluster_labels *= label_masks
 
@@ -209,24 +251,20 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
             if j < lang_num[i]:
                 pred_ref_idx, gt_ref_idx = pred_ref[i][j], gt_ref[i][j]
                 if proposal_generator == "votenet":
-                    pred_obb = config.param2obb(
-                        pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
-                        pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
-                        pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
-                        pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
-                        pred_size_residual[i, pred_ref_idx].detach().cpu().numpy()
-                    )
+                    pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3].detach().cpu().numpy(),
+                                                pred_heading_class[i, pred_ref_idx].detach().cpu().numpy(),
+                                                pred_heading_residual[i, pred_ref_idx].detach().cpu().numpy(),
+                                                pred_size_class[i, pred_ref_idx].detach().cpu().numpy(),
+                                                pred_size_residual[i, pred_ref_idx].detach().cpu().numpy())
                     pred_bbox = get_3d_box(pred_obb[3:6], pred_obb[6], pred_obb[0:3])
                 else:
                     pred_bbox = data_dict["box_corners"][i][pred_ref_idx].detach().cpu().numpy()
 
-                gt_obb = config.param2obb(
-                    gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(),
-                    gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(),
-                    gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
-                    gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
-                    gt_size_residual[i, gt_ref_idx].detach().cpu().numpy()
-                )
+                gt_obb = config.param2obb(gt_center[i, gt_ref_idx, 0:3].detach().cpu().numpy(),
+                                          gt_heading_class[i, gt_ref_idx].detach().cpu().numpy(),
+                                          gt_heading_residual[i, gt_ref_idx].detach().cpu().numpy(),
+                                          gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
+                                          gt_size_residual[i, gt_ref_idx].detach().cpu().numpy())
                 gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
                 if proposal_generator != "votenet":
                     gt_bbox = data_dict["gt_box_corners"][i][gt_ref_idx].detach().cpu().numpy()
@@ -245,10 +283,14 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
                 # construct the others mask
                 flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
                 others.append(flag)
-
+        import ipdb; ipdb.set_trace()
+        global iter_id
+        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy(), pred_bboxes[:-lang_num[i]],
+                     gt_bboxes[:-lang_num[i]])
+        iter_id += 1
     # lang
     if reference and use_lang_classifier:
-        object_cat = data_dict["object_cat_list"].reshape(batch_size*len_nun_max)
+        object_cat = data_dict["object_cat_list"].reshape(batch_size * len_nun_max)
         data_dict["lang_acc"] = (torch.argmax(data_dict['lang_scores'], 1) == object_cat).float().mean()
     else:
         data_dict["lang_acc"] = torch.zeros(1)[0].cuda()
@@ -262,18 +304,16 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     data_dict["pred_bboxes"] = pred_bboxes
     data_dict["gt_bboxes"] = gt_bboxes
 
-
     # --------------------------------------------
     # Some other statistics
     obj_pred_val = torch.argmax(data_dict['objectness_scores'], 2)  # B,K
     if proposal_generator == "votenet":
-        obj_acc = torch.sum(
-            (obj_pred_val == data_dict['objectness_label'].long()).float() * data_dict['objectness_mask']) / (
-                            torch.sum(data_dict['objectness_mask']) + 1e-6)
+        obj_acc = torch.sum((obj_pred_val == data_dict['objectness_label'].long()).float() *
+                            data_dict['objectness_mask']) / (torch.sum(data_dict['objectness_mask']) + 1e-6)
         data_dict['obj_acc'] = obj_acc
         # detection semantic classification
         sem_cls_label = torch.gather(data_dict['sem_cls_label'], 1,
-                                    data_dict['object_assignment'])  # select (B,K) from (B,K2)
+                                     data_dict['object_assignment'])  # select (B,K) from (B,K2)
         sem_cls_pred = data_dict['sem_cls_scores'].argmax(-1)  # (B,K)
         sem_match = (sem_cls_label == sem_cls_pred).float()
         data_dict["sem_acc"] = (sem_match * data_dict["pred_mask"]).sum() / data_dict["pred_mask"].sum()
