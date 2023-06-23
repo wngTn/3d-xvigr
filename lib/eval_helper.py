@@ -67,7 +67,7 @@ def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
             o3d.io.write_line_set(os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"), o3d_gt_box)
             print("Dumped gt box to " + os.path.join(dump_dir, "gt_box_" + str(i) + ".ply"))
     if pred_boxes is not None:
-        for j, pred_box in enumerate(pred_box):
+        for j, pred_box in enumerate(pred_boxes):
             o3d_pred_box = o3d.geometry.LineSet()
             o3d_pred_box.points = o3d.utility.Vector3dVector(pred_box)
             o3d_pred_box.lines = o3d.utility.Vector2iVector(
@@ -283,10 +283,11 @@ def get_eval(data_dict,
                 # construct the others mask
                 flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
                 others.append(flag)
-        import ipdb; ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
         global iter_id
-        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], pred_bboxes[-lang_num[i]:],
-                     gt_bboxes[-lang_num[i]:])
+        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], gt_bboxes[-lang_num[i]:],
+                     pred_bboxes[-lang_num[i]:])
         iter_id += 1
     # lang
     if reference and use_lang_classifier:
