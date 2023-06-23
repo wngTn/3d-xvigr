@@ -380,12 +380,6 @@ class Model3DETR(nn.Module):
         features = self.features_concat(features).permute(0, 2, 1)
         batch_size, num_proposal = features.shape[:2]
 
-        if len(data_dict["objectness_scores"].shape) < 3:
-            data_dict["objectness_scores"] = data_dict["objectness_scores"].unsqueeze(2)
-        objectness_scores = 1 - data_dict["objectness_scores"]
-        comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
-        objectness_masks = comparison.float().cpu().numpy()
-
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
 
