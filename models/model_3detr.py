@@ -390,6 +390,8 @@ class Model3DETR(nn.Module):
         lang_fea = data_dict["lang_fea"]
         # print("features", features.shape, lang_fea.shape)
 
+        feature0 = features.clone()
+        feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         # attention_mask.shape = (256, 1, 1, 64)
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
