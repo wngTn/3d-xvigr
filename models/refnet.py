@@ -134,5 +134,5 @@ class RefNet(nn.Module):
             
             data_dict = self.lang(data_dict)
             data_dict = self.model(data_dict)
-
+            data_dict = self.match(data_dict)
         return data_dict
