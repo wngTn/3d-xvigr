@@ -13,7 +13,7 @@ class MatchModule(nn.Module):
 
         self.num_proposals = num_proposals
         self.lang_size = lang_size
-        self.hidden_size = hidden_size
+        self.hidden_size = 256
         self.depth = depth - 1
 
         self.proposal_generator = proposal_generator
@@ -149,7 +149,7 @@ class MatchModule(nn.Module):
         # print("features", features.shape, lang_fea.shape)
 
         # attention_mask.shape = (256, 1, 1, 64)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
         for _ in range(self.depth):
