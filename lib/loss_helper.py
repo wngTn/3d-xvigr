@@ -277,7 +277,7 @@ def compute_reference_loss(data_dict, config, no_reference=False):
 
     # predicted bbox
     # pred_ref = data_dict['cluster_ref'].detach().cpu().numpy() # (B,)
-    import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     if 'heading_scores' in data_dict:
         proposal_generator = "votenet"
     else:
