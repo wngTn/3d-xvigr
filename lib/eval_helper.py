@@ -268,8 +268,8 @@ def get_eval(data_dict,
                                           gt_size_class[i, gt_ref_idx].detach().cpu().numpy(),
                                           gt_size_residual[i, gt_ref_idx].detach().cpu().numpy())
                 gt_bbox = get_3d_box(gt_obb[3:6], gt_obb[6], gt_obb[0:3])
-                if proposal_generator != "votenet":
-                    gt_bbox = data_dict["gt_box_corners"][i][gt_ref_idx].detach().cpu().numpy()
+                # if proposal_generator != "votenet":
+                #    gt_bbox = data_dict["gt_box_corners"][i][gt_ref_idx].detach().cpu().numpy()
                 iou = eval_ref_one_sample(pred_bbox, gt_bbox)
                 ious.append(iou)
 
