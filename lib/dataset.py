@@ -60,8 +60,9 @@ class ScannetReferenceDataset(Dataset):
         # load data
         self._load_data()
         self.multiview_data = {}
-        # self.shuffled = False
-        self.should_shuffle = shuffle
+        self.shuffled = False
+        self.shoud_shuffle = False
+        # self.should_shuffle = shuffle
         # self.shuffle_data()
         self.center_normalizing_range = [
             np.zeros((1, 3), dtype=np.float32),
@@ -110,8 +111,8 @@ class ScannetReferenceDataset(Dataset):
 
 
     def shuffle_data(self):
-        # if self.shuffled:
-        #     return
+        if self.shuffled:
+            return
         # SElf.shuffled = True
         print('shuffle dataset data(lang)', flush=True)
         self.scanrefer_new = self.split_scene_new(self.scanrefer)
