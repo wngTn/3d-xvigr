@@ -129,11 +129,12 @@ def get_solver(args, dataloader):
             'match': {'lr': 0.0005},
         }
     else:
-        weight_dict = {
-            'model': {'lr': 0.00001},
-            'lang': {'lr': 0.0005},
-            'match': {'lr': 0.0005},
-        } 
+        import ipdb; ipdb.set_trace()
+        model_3detr_keys = torch.load("pretrained_3detr/scannet_masked_ep1080.pth")['model'].keys()
+        weight_dict = {k : {'lr' : 0.00001} for k in model_3detr_keys}
+        weight_dict['model'] = {'lr': 0.001}
+        weight_dict['lang'] = {'lr': 0.0005}
+        weight_dict['match'] = {'lr': 0.0005}
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
     # params = model.parameters()
     optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
