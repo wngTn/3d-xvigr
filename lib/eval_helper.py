@@ -287,12 +287,12 @@ def get_eval(data_dict,
                 # construct the others mask
                 flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
                 others.append(flag)
-        import ipdb
-        ipdb.set_trace()
-        global iter_id
-        dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], gt_bboxes[-lang_num[i]:],
-                     pred_bboxes[-lang_num[i]:])
-        iter_id += 1
+        # import ipdb
+        # ipdb.set_trace()
+        # global iter_id
+        # dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], gt_bboxes[-lang_num[i]:],
+        #              pred_bboxes[-lang_num[i]:])
+        # iter_id += 1
     # lang
     if reference and use_lang_classifier:
         object_cat = data_dict["object_cat_list"].reshape(batch_size * len_nun_max)
