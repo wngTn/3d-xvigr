@@ -155,6 +155,7 @@ class MatchModule(nn.Module):
         for _ in range(self.depth):
             feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=dist_weights, way=attention_matrix_way)
             # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
+            import ipdb; ipdb.set_trace()
             feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
         # print("feature1", feature1.shape)
