@@ -13,6 +13,8 @@ from models.helpers import GenericMLP
 from models.position_embedding import PositionEmbeddingCoordsSine
 from models.transformer import (MaskedTransformerEncoder, TransformerDecoder, TransformerDecoderLayer,
                                 TransformerEncoder, TransformerEncoderLayer)
+from models.transformer_utils.attention import MultiHeadAttention
+import random
 
 
 class BoxProcessor(object):
@@ -125,6 +127,34 @@ class Model3DETR(nn.Module):
 
         self.num_queries = num_queries
         self.box_processor = BoxProcessor(dataset_config)
+
+        self.lang_size = 256
+        self.hidden_size = 256
+        hidden_size = self.hidden_size
+        self.depth = 8 - 1
+
+        self.features_concat = nn.Sequential(
+            nn.Conv1d(2048, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(hidden_size),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+        )
+        self.match = nn.Sequential(
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, 1, 1)
+        )
+        head = 4
+        self.self_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(self.depth))
+        self.cross_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(self.depth))  # k, q, v
+
+        self.bbox_embedding = nn.Linear(12, 128)
 
     def build_mlp_heads(self, dataset_config, decoder_dim, mlp_dropout):
         mlp_func = partial(
@@ -323,7 +353,7 @@ class Model3DETR(nn.Module):
         lang_attention_mask = lang_attention_mask.unsqueeze(1)  # Now shape is (128, 1, 50)
         lang_attention_mask = lang_attention_mask.repeat(1, 256, 1)  # Now shape is (128, 256, 50)
         lang_attention_mask = lang_attention_mask.repeat(4, 1, 1)
-        box_features, box_features_ref = self.decoder(tgt,
+        box_features, _ = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,
                                     lang_mask=lang_attention_mask,
@@ -331,7 +361,56 @@ class Model3DETR(nn.Module):
                                     pos=enc_pos)[:2]
 
         data_dict["box_features"] = box_features
-        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_features_ref)
+        import ipdb; ipdb.set_trace()
+        ### EXPERIMENT ###
+        dist_weights = None
+        attention_matrix_way = 'mul'
+        features = data_dict["box_features"]
+        # features = features.permute(2, 1, 0, 3)
+        features = features.permute(2, 0, 3, 1)
+        batch, num_layers, channel, num_queries = (
+            features.shape[0],
+            features.shape[1],
+            features.shape[2],
+            features.shape[3],
+        )
+        # features = features[:, -1, :, :]
+        features = features.reshape(batch, channel * num_layers, num_queries)
+
+        features = self.features_concat(features).permute(0, 2, 1)
+        batch_size, num_proposal = features.shape[:2]
+
+        if len(data_dict["objectness_scores"].shape) < 3:
+            data_dict["objectness_scores"] = data_dict["objectness_scores"].unsqueeze(2)
+        objectness_scores = 1 - data_dict["objectness_scores"]
+        comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
+        objectness_masks = comparison.float().cpu().numpy()
+
+        #features = self.mhatt(features, features, features, proposal_masks)
+        features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
+
+        len_nun_max = data_dict["lang_feat_list"].shape[1]
+
+        #objectness_masks = objectness_masks.permute(0, 2, 1).contiguous()  # batch_size, 1, num_proposals
+        data_dict["random"] = random.random()
+        lang_fea = data_dict["lang_fea"]
+        # print("features", features.shape, lang_fea.shape)
+
+        # attention_mask.shape = (256, 1, 1, 64)
+        feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
+
+        for _ in range(self.depth):
+            feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=dist_weights, way=attention_matrix_way)
+            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
+            feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
+
+        # print("feature1", feature1.shape)
+        # match
+        feature1_agg = feature1
+        feature1_agg = feature1_agg.permute(0, 2, 1).contiguous()
+
+
+        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, feature1_agg)
         data_dict.update(box_predictions["outputs"])
         data_dict["aux_outputs"] = box_predictions["aux_outputs"]
         return data_dict  # box_predictions

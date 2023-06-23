@@ -300,10 +300,10 @@ def compute_reference_loss(data_dict, config, no_reference=False):
 
 
     gt_center_list = data_dict['ref_center_label_list'].cpu().numpy()  # (B,3)
-    gt_heading_class_list = data_dict['ref_heading_class_label_list'].cpu().numpy()  # B
-    gt_heading_residual_list = data_dict['ref_heading_residual_label_list'].cpu().numpy()  # B
-    gt_size_class_list = data_dict['ref_size_class_label_list'].cpu().numpy()  # B
-    gt_size_residual_list = data_dict['ref_size_residual_label_list'].cpu().numpy()  # B,3
+    # gt_heading_class_list = data_dict['ref_heading_class_label_list'].cpu().numpy()  # B
+    # gt_heading_residual_list = data_dict['ref_heading_residual_label_list'].cpu().numpy()  # B
+    # gt_size_class_list = data_dict['ref_size_class_label_list'].cpu().numpy()  # B
+    # gt_size_residual_list = data_dict['ref_size_residual_label_list'].cpu().numpy()  # B,3
     # convert gt bbox parameters to bbox corners
     batch_size, num_proposals = data_dict['objectness_scores'].shape[:2]
     batch_size, len_nun_max = gt_center_list.shape[:2]
@@ -333,10 +333,10 @@ def compute_reference_loss(data_dict, config, no_reference=False):
             comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
             objectness_masks = comparison.float().cpu().numpy()
 
-        gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
-                                              gt_heading_residual_list[i],
-                                              gt_size_class_list[i], gt_size_residual_list[i])
-        gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
+        # gt_obb_batch = config.param2obb_batch(gt_center_list[i][:, 0:3], gt_heading_class_list[i],
+        #                                      gt_heading_residual_list[i],
+        #                                      gt_size_class_list[i], gt_size_residual_list[i])
+        # gt_bbox_batch = get_3d_box_batch(gt_obb_batch[:, 3:6], gt_obb_batch[:, 6], gt_obb_batch[:, 0:3])
         labels = np.zeros((len_nun_max, num_proposals))
         for j in range(len_nun_max):
             if j < lang_num[i]:
@@ -352,7 +352,6 @@ def compute_reference_loss(data_dict, config, no_reference=False):
                 # visualize_boxes(gt_bbox_batch[None, :20],np.ones((1, 20)) , data_dict["point_clouds"].detach().cpu().numpy(), pred_bbox_batch[None, ...][:, :3], 40, -121)
                 ious = box3d_iou_batch(pred_bbox_batch, np.tile(gt_bbox_batch[j], (num_proposals, 1, 1)))
 
-                
                 if data_dict["istrain"][0] == 1 and not no_reference and data_dict["random"] < 0.5:
                     ious = ious * objectness_masks[i]
 
