@@ -131,7 +131,7 @@ class Model3DETR(nn.Module):
         self.lang_size = 256
         self.hidden_size = 256
         hidden_size = self.hidden_size
-        self.depth = 8 - 1
+        self.depth = 8
 
         self.features_concat = nn.Sequential(
             nn.Conv1d(2048, hidden_size, 1),
@@ -395,7 +395,7 @@ class Model3DETR(nn.Module):
         # attention_mask.shape = (256, 1, 1, 64)
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
-        for _ in range(self.depth):
+        for _ in range(self.depth - 1):
             feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=dist_weights, way=attention_matrix_way)
             # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
             feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
