@@ -43,7 +43,6 @@ def construct_bbox_corners(center, box_size):
 
     return corners_3d
 
-
 def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle=False, use_cat_rand=False,
              use_best=False, post_processing=None):
     """ Loss functions
@@ -59,6 +58,7 @@ def get_eval(data_dict, config, reference, use_lang_classifier=False, use_oracle
     """
 
     #batch_size, num_words, _ = data_dict["lang_feat"].shape
+    import ipdb; ipdb.set_trace()
     if 'heading_scores' in data_dict:
         proposal_generator = "votenet"
     else:
