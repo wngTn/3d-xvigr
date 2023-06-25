@@ -143,7 +143,6 @@ class SetCriterion(nn.Module):
         del loss_weight_dict["loss_no_object_weight"]
         self.register_buffer("semcls_percls_weights", semcls_percls_weights)
 
-        print("Loss Angle:", self.loss_angle)
         self.loss_functions = {
             "loss_sem_cls": self.loss_sem_cls,
             "loss_angle": self.loss_angle,
@@ -433,6 +432,7 @@ class SetCriterion(nn.Module):
                 loss += interm_loss
                 for interm_key in interm_loss_dict:
                     loss_dict[f"{interm_key}_{k}"] = interm_loss_dict[interm_key]
+        print("Angle Loss: ", loss_dict["loss_angle_cls"], loss_dict["loss_angle_reg"])
         return loss, loss_dict
 
 
