@@ -306,11 +306,14 @@ class Solver():
 
                 if self.lr_scheduler:
                     # self.lr_scheduler.step()
-                    import ipdb; ipdb.set_trace()
                     print("learning rate --> {}\n".format(self.lr_scheduler.get_lr()), flush=True)
                     # now_lr = self.lr_scheduler.get_lr()[0]
+                    printed_3detr_lr = False
                     for (idx, param_group) in enumerate(self.optimizer.param_groups):
                         # print(param_group.keys(), '<< param key shape')
+                        if param_group["Param_Name"] in self.model_3detr_weight_keys and not printed_3detr_lr:
+                            print('3detr lr', param_group['Param_Name'], param_group['lr'], flush=True)
+                            printed_3detr_lr = True
                         print('[LR Param Group]', param_group['Param_Name'], param_group['lr'], '<< should', flush=True)
                         # param_group['lr'] = base_group_lr[idx] / base_lr * now_lr
 
