@@ -306,6 +306,7 @@ class Solver():
 
                 if self.lr_scheduler:
                     # self.lr_scheduler.step()
+                    import ipdb; ipdb.set_trace()
                     print("learning rate --> {}\n".format(self.lr_scheduler.get_lr()), flush=True)
                     # now_lr = self.lr_scheduler.get_lr()[0]
                     for (idx, param_group) in enumerate(self.optimizer.param_groups):
