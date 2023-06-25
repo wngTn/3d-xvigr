@@ -290,6 +290,8 @@ class Model3DETR(nn.Module):
             size_unnormalized = self.box_processor.compute_predicted_size(size_normalized[l], point_cloud_dims)
             box_corners = self.box_processor.box_parametrization_to_corners(center_unnormalized, size_unnormalized,
                                                                             angle_continuous)
+            
+            print("Angle Continuous", angle_continuous)
 
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables

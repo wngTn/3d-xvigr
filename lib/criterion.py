@@ -143,6 +143,7 @@ class SetCriterion(nn.Module):
         del loss_weight_dict["loss_no_object_weight"]
         self.register_buffer("semcls_percls_weights", semcls_percls_weights)
 
+        print("Loss Angle:", self.loss_angle)
         self.loss_functions = {
             "loss_sem_cls": self.loss_sem_cls,
             "loss_angle": self.loss_angle,
