@@ -110,9 +110,6 @@ class RefNet(nn.Module):
         #######################################
 
         # --------- HOUGH VOTING ---------
-        print("Doing forward pass with scene_ids:", data_dict["scene_id"])
-
-
         if self.proposal_generator=="votenet":
             # --------- HOUGH VOTING ---------
             data_dict = self.backbone_net(data_dict)
