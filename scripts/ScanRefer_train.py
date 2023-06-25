@@ -130,9 +130,9 @@ def get_solver(args, dataloader):
         }
     else:
         # import ipdb; ipdb.set_trace()
-        model_3detr_keys = torch.load("pretrained_3detr/scannet_masked_ep1080.pth")['model'].keys()
-        weight_dict = {"model." + k : {'lr' : 0.00001} for k in model_3detr_keys}
-        weight_dict['model'] = {'lr': 0.001}
+        model_3detr_weight_keys = [line.rstrip('\n') for line in open('data/model_3detr_weights.txt', 'r')]
+        for model_3detr_weight_key in model_3detr_weight_keys:
+            weight_dict[model_3detr_weight_key] = {'lr': 0.0001}
         weight_dict['lang'] = {'lr': 0.0005}
         weight_dict['match'] = {'lr': 0.0005}
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
@@ -329,7 +329,15 @@ if __name__ == "__main__":
     parser.add_argument("--epoch", type=int, help="number of epochs", default=50)
     parser.add_argument("--verbose", type=int, help="iterations of showing verbose", default=10)
     parser.add_argument("--val_step", type=int, help="iterations of validating", default=5000)
-    parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
+    parser.add_argument("--lr", type=float, help="learning rate", default=5e-4)
+
+    ##### Optimizer #####
+    parser.add_argument("--warm_lr", default=1e-6, type=float)
+    parser.add_argument("--warm_lr_epochs", default=9, type=int)
+    parser.add_argument("--final_lr", default=1e-6, type=float)
+    parser.add_argument("--weight_decay", default=0.1, type=float)
+    parser.add_argument("--filter_biases_wd", default=False, action="store_true")
+
     parser.add_argument("--wd", type=float, help="weight decay", default=1e-5)
     parser.add_argument("--lang_num_max", type=int, help="lang num max", default=32)
     parser.add_argument("--num_points", type=int, default=40000, help="Point Number [default: 40000]")

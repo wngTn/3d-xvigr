@@ -18,6 +18,7 @@ from lib.eval_helper import get_eval
 from utils.eta import decode_eta
 from lib.pointnet2.pytorch_utils import BNMomentumScheduler
 from lib.ap_calculator import APCalculator
+import math
 
 
 ITER_REPORT_TEMPLATE = """
@@ -140,6 +141,30 @@ BEST_REPORT_TEMPLATE_3DETR = """
 [sco.] ref_acc: {ref_acc}
 [sco.] iou_rate_0.25: {iou_rate_25}, iou_rate_0.5: {iou_rate_5}
 """
+
+def compute_learning_rate_3detr(args, curr_epoch_normalized):
+    assert curr_epoch_normalized <= 1.0 and curr_epoch_normalized >= 0.0
+    if (
+        curr_epoch_normalized <= (args.warm_lr_epochs / args.max_epoch)
+        and args.warm_lr_epochs > 0
+    ):
+        # Linear Warmup
+        curr_lr = args.warm_lr + curr_epoch_normalized * args.max_epoch * (
+            (args.base_lr - args.warm_lr) / args.warm_lr_epochs
+        )
+    else:
+        # Cosine Learning Rate Schedule
+        curr_lr = args.final_lr + 0.5 * (args.base_lr - args.final_lr) * (
+            1 + math.cos(math.pi * curr_epoch_normalized)
+        )
+    return curr_lr
+
+
+def adjust_learning_rate_3detr(args, optimizer, curr_epoch):
+    curr_lr = compute_learning_rate_3detr(args, curr_epoch)
+    for param_group in optimizer.param_groups:
+        param_group["lr"] = curr_lr
+    return curr_lr
 
 class Solver():
     def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
@@ -264,6 +289,7 @@ class Solver():
         else:
             self.bn_scheduler = None
 
+
     def __call__(self, epoch, verbose):
         # setting
         self.epoch = epoch
@@ -298,6 +324,9 @@ class Solver():
                 if self.lr_scheduler:
                     print("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
                     self.lr_scheduler.step()
+                    import ipdb; ipdb.set_trace()
+                    adjust_learning_rate_3detr(self.args, self.optimizer, self._global_iter_id + 1 / self._total_iter["train"])
+                    
 
                 # update bn scheduler
                 if self.bn_scheduler:

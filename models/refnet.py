@@ -67,9 +67,9 @@ class RefNet(nn.Module):
                                         sampling, config_transformer=config_transformer, dataset_config=dataset_config)
         elif self.proposal_generator=="3detr":
             # Vote aggregation and object proposal
-            self.model, _ = build_3detr(args=args, dataset_config=dataset_config)
+            self.model_3detr, _ = build_3detr(args=args, dataset_config=dataset_config)
             sd = torch.load("pretrained_3detr/scannet_masked_ep1080.pth", map_location=torch.device("cuda:0"))
-            self.model.load_state_dict(sd["model"], strict=False)
+            self.model_3detr.load_state_dict(sd["model"], strict=False)
 
 
         if not no_reference:
@@ -134,6 +134,6 @@ class RefNet(nn.Module):
         elif self.proposal_generator=="3detr":
             
             data_dict = self.lang(data_dict)
-            data_dict = self.model(data_dict)
+            data_dict = self.model_3detr(data_dict)
             data_dict = self.match(data_dict)
         return data_dict
