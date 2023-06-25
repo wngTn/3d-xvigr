@@ -145,16 +145,16 @@ BEST_REPORT_TEMPLATE_3DETR = """
 def compute_learning_rate_3detr(args, curr_epoch_normalized):
     assert curr_epoch_normalized <= 1.0 and curr_epoch_normalized >= 0.0
     if (
-        curr_epoch_normalized <= (args.warm_lr_epochs / args.max_epoch)
+        curr_epoch_normalized <= (args.warm_lr_epochs / args.epoch)
         and args.warm_lr_epochs > 0
     ):
         # Linear Warmup
-        curr_lr = args.warm_lr + curr_epoch_normalized * args.max_epoch * (
-            (args.base_lr - args.warm_lr) / args.warm_lr_epochs
+        curr_lr = args.warm_lr + curr_epoch_normalized * args.epoch * (
+            (args.lr - args.warm_lr) / args.warm_lr_epochs
         )
     else:
         # Cosine Learning Rate Schedule
-        curr_lr = args.final_lr + 0.5 * (args.base_lr - args.final_lr) * (
+        curr_lr = args.final_lr + 0.5 * (args.lr - args.final_lr) * (
             1 + math.cos(math.pi * curr_epoch_normalized)
         )
     return curr_lr
