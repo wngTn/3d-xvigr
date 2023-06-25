@@ -160,12 +160,6 @@ def compute_learning_rate_3detr(args, curr_epoch_normalized):
     return curr_lr
 
 
-def adjust_learning_rate_3detr(args, optimizer, curr_epoch):
-    curr_lr = compute_learning_rate_3detr(args, curr_epoch)
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = curr_lr
-    return curr_lr
-
 class Solver():
     def __init__(self, model, config, dataloader, optimizer, stamp, val_step=10, 
     detection=True, reference=True, use_lang_classifier=True,
@@ -189,6 +183,8 @@ class Solver():
         self.lr_decay_rate = lr_decay_rate
         self.bn_decay_step = bn_decay_step
         self.bn_decay_rate = bn_decay_rate
+
+        self.model_3detr_weight_keys = [line.rstrip('\n') for line in open('data/model_3detr_weights.txt', 'r')]
 
         self.args = args
 
@@ -289,6 +285,12 @@ class Solver():
         else:
             self.bn_scheduler = None
 
+    def adjust_learning_rate_3detr(self, args, optimizer, curr_epoch):
+        curr_lr = compute_learning_rate_3detr(args, curr_epoch)
+        for param_group in optimizer.param_groups:
+            if param_group["Param_Name"] in self.model_3detr_weight_keys:
+                param_group["lr"] = curr_lr
+        return curr_lr
 
     def __call__(self, epoch, verbose):
         # setting
@@ -324,8 +326,7 @@ class Solver():
                 if self.lr_scheduler:
                     print("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
                     self.lr_scheduler.step()
-                    import ipdb; ipdb.set_trace()
-                    adjust_learning_rate_3detr(self.args, self.optimizer, (self._global_iter_id + 1) / self._total_iter["train"])
+                    self.adjust_learning_rate_3detr(self.args, self.optimizer, (self._global_iter_id + 1) / self._total_iter["train"])
                     
 
                 # update bn scheduler
