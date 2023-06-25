@@ -111,8 +111,8 @@ class ScannetReferenceDataset(Dataset):
 
 
     def shuffle_data(self):
-        if self.shuffled:
-            return
+        print("Not shuffling")
+        return
         # SElf.shuffled = True
         print('shuffle dataset data(lang)', flush=True)
         self.scanrefer_new = self.split_scene_new(self.scanrefer)
@@ -379,7 +379,7 @@ class ScannetReferenceDataset(Dataset):
 
 
         data_dict = {}
-
+        data_dict["scene_id"] = scene_id
         data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
         data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
 
