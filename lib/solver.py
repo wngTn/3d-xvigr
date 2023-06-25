@@ -325,7 +325,7 @@ class Solver():
                     print("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
                     self.lr_scheduler.step()
                     import ipdb; ipdb.set_trace()
-                    adjust_learning_rate_3detr(self.args, self.optimizer, self._global_iter_id + 1 / self._total_iter["train"])
+                    adjust_learning_rate_3detr(self.args, self.optimizer, (self._global_iter_id + 1) / self._total_iter["train"])
                     
 
                 # update bn scheduler
