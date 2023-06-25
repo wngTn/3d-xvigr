@@ -136,9 +136,9 @@ def get_solver(args, dataloader):
             weight_dict[model_3detr_weight_key] = {'lr': 0.0001}
         weight_dict['lang'] = {'lr': 0.0005}
         weight_dict['match'] = {'lr': 0.0005}
-    params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.wd, weight_dict=weight_dict)
+    params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.weight_decay, weight_dict=weight_dict)
     # params = model.parameters()
-    optimizer = AdamW(params, lr=args.lr, weight_decay=args.wd, amsgrad=args.amsgrad)
+    optimizer = AdamW(params, lr=args.lr, weight_decay=args.weight_decay, amsgrad=args.amsgrad)
 
     if args.use_checkpoint:
         print("loading checkpoint {}...".format(args.use_checkpoint))
@@ -334,7 +334,7 @@ if __name__ == "__main__":
 
     ##### Optimizer #####
     parser.add_argument("--warm_lr", default=1e-6, type=float)
-    parser.add_argument("--warm_lr_epochs", default=9, type=int)
+    parser.add_argument("--warm_lr_epochs", default=10, type=int)
     parser.add_argument("--final_lr", default=1e-6, type=float)
     parser.add_argument("--weight_decay", default=0.1, type=float)
     parser.add_argument("--filter_biases_wd", default=False, action="store_true")
