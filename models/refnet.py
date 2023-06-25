@@ -110,7 +110,7 @@ class RefNet(nn.Module):
         #######################################
 
         # --------- HOUGH VOTING ---------
-        print("Doing forward pass with scene_ids:", data_dict["scene_ids"])
+        print("Doing forward pass with scene_ids:", data_dict["scene_id"])
 
 
         if self.proposal_generator=="votenet":
