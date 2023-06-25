@@ -379,7 +379,7 @@ class ScannetReferenceDataset(Dataset):
 
 
         data_dict = {}
-        data_dict["scene_id"] = np.int32(scene_id)
+        data_dict["scene_id"] = np.array(scene_id)
         data_dict["point_cloud_dims_min"] = point_cloud_dims_min.astype(np.float32)
         data_dict["point_cloud_dims_max"] = point_cloud_dims_max.astype(np.float32)
 
