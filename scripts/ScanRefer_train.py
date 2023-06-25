@@ -130,6 +130,7 @@ def get_solver(args, dataloader):
         }
     else:
         # import ipdb; ipdb.set_trace()
+        weight_dict = {}
         model_3detr_weight_keys = [line.rstrip('\n') for line in open('data/model_3detr_weights.txt', 'r')]
         for model_3detr_weight_key in model_3detr_weight_keys:
             weight_dict[model_3detr_weight_key] = {'lr': 0.0001}
