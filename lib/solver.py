@@ -311,9 +311,12 @@ class Solver():
                     printed_3detr_lr = False
                     for (idx, param_group) in enumerate(self.optimizer.param_groups):
                         # print(param_group.keys(), '<< param key shape')
-                        if param_group["Param_Name"] in self.model_3detr_weight_keys and not printed_3detr_lr:
-                            print('3detr lr', param_group['Param_Name'], param_group['lr'], flush=True)
-                            printed_3detr_lr = True
+                        if param_group["Param_Name"] in self.model_3detr_weight_keys:
+                            if not printed_3detr_lr:
+                                print('3detr lr', param_group['Param_Name'], param_group['lr'], flush=True)
+                                printed_3detr_lr = True
+                            else:
+                                continue
                         print('[LR Param Group]', param_group['Param_Name'], param_group['lr'], '<< should', flush=True)
                         # param_group['lr'] = base_group_lr[idx] / base_lr * now_lr
 
