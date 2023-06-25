@@ -331,7 +331,7 @@ class Solver():
 
                 # update lr scheduler
                 if self.lr_scheduler:
-                    print("update learning rate --> {}\n".format(self.lr_scheduler.get_lr()))
+                    print("update learning rate --> {}\n".format(set(self.lr_scheduler.get_lr())))
                     self.lr_scheduler.step()
                     self.adjust_learning_rate_3detr(self.args, self.optimizer, (self._global_iter_id + 1) / self._total_iter["train"])
                     
