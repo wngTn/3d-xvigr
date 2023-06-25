@@ -47,6 +47,7 @@ class ScaledDotProductAttention(nn.Module):
         :param attention_weights: Multiplicative weights for attention values (b_s, h, nq, nk).
         :return:
         '''
+        import ipdb; ipdb.set_trace()
         b_s, nq = queries.shape[:2]
         nk = keys.shape[1]
         #print(queries.shape, keys.shape, values.shape)
