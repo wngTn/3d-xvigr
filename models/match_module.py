@@ -96,18 +96,7 @@ class MatchModule(nn.Module):
         batch_size, num_proposal = features.shape[:2]
 
         if len(data_dict["objectness_scores"].shape) < 3:
-            data_dict["objectness_scores"] = data_dict["objectness_scores"].unsqueeze(2)
-
-        # objectness_masks.shape = (8, 256, 1)
-        if self.proposal_generator == "votenet":
-            objectness_masks = data_dict['objectness_scores'].max(2)[1].float().unsqueeze(2) # batch_size, num_proposals, 1
-        else:
-            # max_sem_cls_prob, _ = data_dict["sem_cls_prob"].max(dim=2)
-            # comparison_result = max_sem_cls_prob <= (1 - data_dict["objectness_scores"]).squeeze(dim=2)
-            # objectness_masks = comparison_result.float().unsqueeze(2)
-            objectness_scores = 1 - data_dict["objectness_scores"]
-            comparison = data_dict["sem_cls_prob"].max(dim=2)[0] > objectness_scores.squeeze(dim=-1)
-            objectness_masks = comparison.float().unsqueeze(2)
+            data_dict["objectness_scores"] = data_dict["objectness_scores"].unsqueeze(2) 
 
         #features = self.mhatt(features, features, features, proposal_masks)
         features = self.self_attn[0](features, features, features, attention_weights=dist_weights, way=attention_matrix_way)
@@ -119,29 +108,6 @@ class MatchModule(nn.Module):
 
         # copy paste
         feature0 = features.clone()
-        # if data_dict["istrain"][0] == 1 and data_dict["random"] < 0.5:
-        #     obj_masks = objectness_masks.bool().squeeze(2)  # batch_size, num_proposals
-        #     obj_lens = torch.zeros(batch_size, dtype=torch.int).cuda()
-        #     for i in range(batch_size):
-        #         obj_mask = torch.where(obj_masks[i, :] == True)[0]
-        #         obj_len = obj_mask.shape[0]
-        #         obj_lens[i] = obj_len
-
-        #     obj_masks_reshape = obj_masks.reshape(batch_size*num_proposal)
-        #     obj_features = features.reshape(batch_size*num_proposal, -1)
-        #     obj_mask = torch.where(obj_masks_reshape[:] == True)[0]
-        #     total_len = obj_mask.shape[0]
-        #     obj_features = obj_features[obj_mask, :].repeat(2,1)  # total_len, hidden_size
-        #     j = 0
-        #     for i in range(batch_size):
-        #         obj_mask = torch.where(obj_masks[i, :] == False)[0]
-        #         obj_len = obj_mask.shape[0]
-        #         j += obj_lens[i]
-        #         if obj_len < total_len - obj_lens[i]:
-        #             feature0[i, obj_mask, :] = obj_features[j:j + obj_len, :]
-        #         else:
-        #             feature0[i, obj_mask[:total_len - obj_lens[i]], :] = obj_features[j:j + total_len - obj_lens[i], :]
-
         feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
         if dist_weights is not None:
             dist_weights = dist_weights[:, None, :, :, :].repeat(1, len_nun_max, 1, 1, 1).reshape(batch_size*len_nun_max, dist_weights.shape[1], num_proposal, num_proposal)
@@ -150,7 +116,7 @@ class MatchModule(nn.Module):
         # print("features", features.shape, lang_fea.shape)
 
         # attention_mask.shape = (256, 1, 1, 64)
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
 
         for _ in range(self.depth):

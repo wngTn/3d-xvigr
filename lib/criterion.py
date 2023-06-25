@@ -432,7 +432,6 @@ class SetCriterion(nn.Module):
                 loss += interm_loss
                 for interm_key in interm_loss_dict:
                     loss_dict[f"{interm_key}_{k}"] = interm_loss_dict[interm_key]
-        print("Angle Loss: ", loss_dict["loss_angle_cls"], loss_dict["loss_angle_reg"])
         return loss, loss_dict
 
 
