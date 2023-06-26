@@ -273,7 +273,7 @@ class Model3DETR(nn.Module):
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
+        # ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
@@ -307,7 +307,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
+                # ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
