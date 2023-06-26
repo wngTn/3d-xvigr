@@ -154,7 +154,7 @@ class TransformerDecoder(nn.Module):
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), torch.stack(output_ref), attns
+            return torch.stack(intermediate), torch.stack(intermediate_ref), attns
 
         return output, output_ref, attns
 
@@ -451,7 +451,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
 
         # Cross Attention with language features
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
