@@ -120,10 +120,10 @@ class TransformerDecoder(nn.Module):
         output = tgt
 
         intermediate = []
-        intermediate_ref = []
         attns = []
-        for layer in self.layers:
-            output, output_ref, attn = layer(output,
+        for j, layer in enumerate(self.layers):
+            is_last_layer = j == len(self.layers) - 1
+            output, attn = layer(output,
                                  memory,
                                  lang_fea,
                                  tgt_mask=tgt_mask,
@@ -133,26 +133,29 @@ class TransformerDecoder(nn.Module):
                                  memory_key_padding_mask=memory_key_padding_mask,
                                  pos=pos,
                                  query_pos=query_pos,
-                                 return_attn_weights=return_attn_weights)
+                                 return_attn_weights=return_attn_weights,
+                                 is_last_layer=is_last_layer)
+            if is_last_layer:
+                output, output_ref = output
+            else:
+                output = output[0]
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
-                intermediate_ref.append(self.norm(output_ref))
             if return_attn_weights:
                 attns.append(attn)
+
         if self.norm is not None:
             output = self.norm(output)
             output_ref = self.norm(output_ref)
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
-                intermediate_ref.pop()
-                intermediate_ref.append(output_ref)
 
         if return_attn_weights:
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), torch.stack(intermediate_ref), attns
+            return torch.stack(intermediate), output_ref, attns
 
         return output, output_ref, attns
 
@@ -343,8 +346,16 @@ class TransformerDecoderLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn2 = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.cross_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+
+        self.feature_down = nn.Sequential(
+            nn.Conv1d(16, 1, 1),
+            nn.BatchNorm1d(1),
+            nn.PReLU(1),
+            nn.Conv1d(1, 1, 1),
+        )
 
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
@@ -362,10 +373,6 @@ class TransformerDecoderLayer(nn.Module):
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout, inplace=False)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-
-        self.linear3 = nn.Linear(d_model, dim_feedforward)
-        self.dropout0 = nn.Dropout(dropout, inplace=False)
-        self.linear4 = nn.Linear(dim_feedforward, d_model)
 
         self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
@@ -412,9 +419,10 @@ class TransformerDecoderLayer(nn.Module):
                     memory_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None,
-                    return_attn_weights: Optional[bool] = False):
+                    return_attn_weights: Optional[bool] = False,
+                    is_last_layer: Optional[bool] = False):
         # Self Attention with the target
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
@@ -422,37 +430,61 @@ class TransformerDecoderLayer(nn.Module):
         # Cross Attention with encoder features
         tgt2 = self.norm2(tgt)
         tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
-                                   value=memory,
-                                   attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)
+                                         key=self.with_pos_embed(memory, pos),
+                                         value=memory,
+                                         attn_mask=memory_mask,
+                                         key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
+
+        # tgt2 = self.norm3(tgt)
+        # tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        # tgt = tgt + self.dropout3(tgt2)
+
+        # Add a layer of self attention
         tgt2 = self.norm3(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        q = k = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.self_attn2(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout3(tgt2)
 
         # Cross Attention with language features
         # Copy Code from Match Module
+
+        tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[1] // batch_size
         # copy paste
-        feature0 = tgt.clone()
-        pos0 = query_pos.clone()
+        feature0 = tgt2.clone()
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-        query_pos_ref = pos0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-        tgt2 = self.norm4(tgt_ref)
-        tgt2 = self.cross_attn(query=self.with_pos_embed(tgt2, query_pos_ref),
-                                     key=lang_fea,
-                                     value=lang_fea,
-                                     attn_mask=lang_mask)[0]
-        tgt_ref = tgt_ref + self.dropout4(tgt2)
+        tgt_ref = tgt_ref.permute(1, 0, 2)
+        tgt_ref = self.cross_attn(
+            tgt_ref,
+            lang_fea,
+            lang_fea,
+            lang_mask,
+        )
 
-        tgt2 = self.norm5(tgt_ref)
-        tgt2 = self.linear4(self.dropout0(self.activation(self.linear3(tgt2))))
-        tgt_ref = tgt_ref + self.dropout5(tgt2)
+        tgt_ref = tgt + self.dropout4(tgt_ref)
+
+        tgt_all_queries = tgt_ref.clone()
+        tgt_all_queries = tgt_all_queries.permute(0, 2, 1).contigious()
+
+        tgt_together = tgt_all_queries.clone()
+        tgt_together = tgt_together.reshape(-1, 16, 256)
+        tgt_together = self.feature_down(tgt_all_queries)
+        tgt_together = tgt_together.reshape(256, 8, 1, 256)
+        tgt_together = tgt_together.squeeze(2)
+
+        tgt2 = self.norm5(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        tgt = tgt + self.dropout5(tgt2)
+
+        if is_last_layer:
+            results = [tgt, tgt_all_queries]
+        else:
+            results = tgt
         if return_attn_weights:
-            return tgt, tgt_ref, attn
-        return tgt, tgt_ref, None
+            return results, attn
+        return results, None
 
     def forward(self,
                 tgt,
@@ -465,9 +497,10 @@ class TransformerDecoderLayer(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None,
-                return_attn_weights: Optional[bool] = False):
+                return_attn_weights: Optional[bool] = False,
+                is_last_layer: Optional[bool] = False):
         if self.normalize_before:
             return self.forward_pre(tgt, memory, lang_fea, tgt_mask, memory_mask, lang_mask, tgt_key_padding_mask,
-                                    memory_key_padding_mask, pos, query_pos, return_attn_weights)
+                                    memory_key_padding_mask, pos, query_pos, return_attn_weights, is_last_layer)
         return self.forward_post(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos,
                                  query_pos, return_attn_weights)
