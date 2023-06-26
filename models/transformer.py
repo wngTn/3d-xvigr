@@ -451,7 +451,7 @@ class TransformerDecoderLayer(nn.Module):
 
         tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
-        len_nun_max = lang_fea.shape[1] // batch_size
+        len_nun_max = lang_fea.shape[0] // batch_size
         # copy paste
         feature0 = tgt2.clone()
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
