@@ -337,6 +337,7 @@ class Model3DETR(nn.Module):
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
         lang_attention_mask = data_dict["attention_mask"]
+        
         box_features, box_feature_ref = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,
