@@ -350,7 +350,16 @@ class TransformerDecoderLayer(nn.Module):
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
         self.feature_down = nn.Sequential(
-            nn.Conv1d(16, 1, 1),
+            nn.Conv1d(16, 16, 1),
+            nn.BatchNorm1d(16),
+            nn.PReLU(16),
+            nn.Conv1d(16, 8, 1),
+            nn.BatchNorm1d(8),
+            nn.PReLU(8),
+            nn.Conv1d(8, 4, 1),
+            nn.BatchNorm1d(4),
+            nn.PReLU(4),
+            nn.Conv1d(4, 1, 1),
             nn.BatchNorm1d(1),
             nn.PReLU(1),
             nn.Conv1d(1, 1, 1),
@@ -466,13 +475,14 @@ class TransformerDecoderLayer(nn.Module):
             lang_mask,
         )
         tgt2 = tgt2.permute(1, 0, 2)
-        # tgt_ref is now (128, 256, 256)
+        # tgt_ref is now (256, 128, 256)
 
         # for all queries
         tgt_all_queries2 = tgt2.clone()
-        tgt_all_queries2 = self.norm4_1(tgt_all_queries2)
-        tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear1_ref(tgt_all_queries2))))
-        tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
+        # tgt_all_queries2 = self.norm4_1(tgt_all_queries2)
+        # tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear1_ref(tgt_all_queries2))))
+        # tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
+        tgt_all_queries = tgt_all_queries2
 
         # all together
         tgt_together2 = tgt2.clone()
