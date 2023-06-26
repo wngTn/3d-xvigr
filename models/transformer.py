@@ -123,7 +123,7 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         intermediate_ref = []
         attns = []
-        for layer in enumerate(self.layers):
+        for layer in self.layers:
             output, output_ref, attn = layer(output,
                                  memory,
                                  lang_fea,
