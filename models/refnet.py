@@ -4,7 +4,6 @@ import numpy as np
 import sys
 import os
 
-
 from models.backbone_module import Pointnet2Backbone
 from models.voting_module import VotingModule
 from models.proposal_module import ProposalModule
@@ -12,11 +11,26 @@ from models.lang_module import LangModule
 from models.match_module import MatchModule
 from models.model_3detr import build_3detr
 
+
 class RefNet(nn.Module):
-    def __init__(self, num_class, num_heading_bin, num_size_cluster, mean_size_arr, args=None,
-                 input_feature_dim=0, num_proposal=128, vote_factor=1, sampling="vote_fps",
-                 use_lang_classifier=True, use_bidir=False, no_reference=False,
-                 emb_size=300, hidden_size=256, dataset_config=None, proposal_generator="votenet"):
+
+    def __init__(self,
+                 num_class,
+                 num_heading_bin,
+                 num_size_cluster,
+                 mean_size_arr,
+                 args=None,
+                 input_feature_dim=0,
+                 num_proposal=128,
+                 vote_factor=1,
+                 sampling="vote_fps",
+                 use_lang_classifier=True,
+                 use_bidir=False,
+                 no_reference=False,
+                 emb_size=300,
+                 hidden_size=256,
+                 dataset_config=None,
+                 proposal_generator="votenet"):
         super().__init__()
 
         self.num_class = num_class
@@ -52,25 +66,29 @@ class RefNet(nn.Module):
             'enc_layers': 0,
             'dec_layers': 2,
             'dim_feedforward': 2048,
-            'hidden_dim': 288 if self.proposal_generator=="votenet" else 256 * 8,
+            'hidden_dim': 288 if self.proposal_generator == "votenet" else 256 * 8,
             'dropout': 0.1,
             'nheads': 8,
             'pre_norm': False
         }
 
-        if self.proposal_generator=="votenet":
+        if self.proposal_generator == "votenet":
             # Hough voting
             self.vgen = VotingModule(self.vote_factor, 256)
 
-
-            self.proposal = ProposalModule(num_class, num_heading_bin, num_size_cluster, mean_size_arr, num_proposal,
-                                        sampling, config_transformer=config_transformer, dataset_config=dataset_config)
-        elif self.proposal_generator=="3detr":
+            self.proposal = ProposalModule(num_class,
+                                           num_heading_bin,
+                                           num_size_cluster,
+                                           mean_size_arr,
+                                           num_proposal,
+                                           sampling,
+                                           config_transformer=config_transformer,
+                                           dataset_config=dataset_config)
+        elif self.proposal_generator == "3detr":
             # Vote aggregation and object proposal
             self.model_3detr, _ = build_3detr(args=args, dataset_config=dataset_config)
             # sd = torch.load("pretrained_3detr/scannet_masked_ep1080.pth", map_location=torch.device("cuda:0"))
             # self.model_3detr.load_state_dict(sd["model"], strict=False)
-
 
         if not no_reference:
             # --------- LANGUAGE ENCODING ---------
@@ -81,8 +99,10 @@ class RefNet(nn.Module):
             # --------- PROPOSAL MATCHING ---------
             # Match the generated proposals and select the most confident ones
             # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size, det_channel=256*2)
-            # self.match = MatchModule(num_proposals=num_proposal, lang_size=(1 + int(self.use_bidir)) * hidden_size,
-            #                         det_channel=config_transformer['hidden_dim'], proposal_generator=self.proposal_generator)  # bef 256
+            # self.match = MatchModule(num_proposals=num_proposal,
+            #                          lang_size=(1 + int(self.use_bidir)) * hidden_size,
+            #                          det_channel=config_transformer['hidden_dim'],
+            #                          proposal_generator=self.proposal_generator)  # bef 256
 
     def forward(self, data_dict):
         """ Forward pass of the network
@@ -110,7 +130,7 @@ class RefNet(nn.Module):
         #######################################
 
         # --------- HOUGH VOTING ---------
-        if self.proposal_generator=="votenet":
+        if self.proposal_generator == "votenet":
             # --------- HOUGH VOTING ---------
             data_dict = self.backbone_net(data_dict)
             xyz = data_dict["fp2_xyz"]
@@ -128,8 +148,8 @@ class RefNet(nn.Module):
             # --------- PROPOSAL GENERATION ---------
             data_dict = self.proposal(xyz, features, data_dict)
 
-        elif self.proposal_generator=="3detr":
-            
+        elif self.proposal_generator == "3detr":
+
             data_dict = self.lang(data_dict)
             data_dict = self.model_3detr(data_dict)
             # data_dict = self.match(data_dict)
