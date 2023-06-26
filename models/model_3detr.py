@@ -132,11 +132,11 @@ class Model3DETR(nn.Module):
         hidden_size = 256
         head = 4
         depth = 2
-        self.depth = depth
+        self.depth = depth - 1
         self.self_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth + 1))
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
         self.cross_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth + 1)) 
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth)) 
 
         self.features_concat = nn.Sequential(
             nn.Conv1d(2048, hidden_size, 1),
