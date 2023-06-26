@@ -263,17 +263,17 @@ class Model3DETR(nn.Module):
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
         box_features_ref = box_features_ref.permute(1, 0, 2)
-        # _, batch_ref, _, _ = (
-        #     box_features_ref.shape[0],
-        #     box_features_ref.shape[1],
-        #     box_features_ref.shape[2],
-        #     box_features_ref.shape[3],
-        # )
-        # box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
+        _, batch_ref, _, _ = (
+            box_features_ref.shape[0],
+            box_features_ref.shape[1],
+            box_features_ref.shape[2],
+            box_features_ref.shape[3],
+        )
+        box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        # ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
+        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
@@ -281,7 +281,7 @@ class Model3DETR(nn.Module):
 
         # reshape outputs to num_layers x batch x nqueries x noutput
         cls_logits = cls_logits.reshape(num_layers, batch, num_queries, -1)
-        # ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
+        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
         center_offset = center_offset.reshape(num_layers, batch, num_queries, -1)
         size_normalized = size_normalized.reshape(num_layers, batch, num_queries, -1)
         angle_logits = angle_logits.reshape(num_layers, batch, num_queries, -1)
@@ -307,7 +307,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                # ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
+                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
@@ -321,7 +321,7 @@ class Model3DETR(nn.Module):
                 "angle_continuous": angle_continuous,
                 "objectness_scores": objectness_prob,
                 "sem_cls_prob": semcls_prob,
-                # "cluster_ref": ref_conf_scores,
+                "cluster_ref": ref_conf_scores,
                 "box_corners": box_corners,
             }
             outputs.append(box_prediction)
@@ -423,11 +423,11 @@ class Model3DETR(nn.Module):
         feature1_agg = feature1
         # box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
         # import ipdb; ipdb.set_trace()
-        box_feature_ref = feature1_agg.permute(0, 2, 1).contiguous()
+        box_feature_ref = feature1_agg # .permute(0, 2, 1).contiguous()
 
-        confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
+        # confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
         # print("confidence1", confidence1.shape)
-        data_dict["cluster_ref"] = confidence
+        # data_dict["cluster_ref"] = confidence
 
         box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_feature_ref)
         data_dict.update(box_predictions["outputs"])
