@@ -365,13 +365,18 @@ class TransformerDecoderLayer(nn.Module):
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
         self.dropout3 = nn.Dropout(dropout, inplace=False)
-        self.dropout4 = nn.Dropout(dropout, inplace=False)
+        self.dropout4_1 = nn.Dropout(dropout, inplace=False)
+        self.dropout4_2 = nn.Dropout(dropout, inplace=False)
         self.dropout5 = nn.Dropout(dropout, inplace=False)
 
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout, inplace=False)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.linear1_ref = nn.Linear(d_model, dim_feedforward)
+        self.dropout_ref = nn.Dropout(dropout, inplace=False)
+        self.linear2_ref = nn.Linear(dim_feedforward, d_model)
 
         self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
