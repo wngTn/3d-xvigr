@@ -145,6 +145,16 @@ class Model3DETR(nn.Module):
             nn.Conv1d(hidden_size, hidden_size, 1),
         ) 
 
+        self.match = nn.Sequential(
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(),
+            nn.Conv1d(hidden_size, 1, 1)
+        )
+
         self.hidden_size = 256
 
     def build_mlp_heads(self, dataset_config, decoder_dim, mlp_dropout):
@@ -311,7 +321,7 @@ class Model3DETR(nn.Module):
                 "angle_continuous": angle_continuous,
                 "objectness_scores": objectness_prob,
                 "sem_cls_prob": semcls_prob,
-                "cluster_ref": ref_conf_scores,
+                # "cluster_ref": ref_conf_scores,
                 "box_corners": box_corners,
             }
             outputs.append(box_prediction)
@@ -411,8 +421,12 @@ class Model3DETR(nn.Module):
         # print("feature1", feature1.shape)
         # match
         feature1_agg = feature1
-        box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
+        # box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
+        box_feature_ref = feature1_agg.permute(0, 2, 1).contiguous()
 
+        confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
+        # print("confidence1", confidence1.shape)
+        data_dict["cluster_ref"] = confidence
 
         box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_feature_ref)
         data_dict.update(box_predictions["outputs"])
