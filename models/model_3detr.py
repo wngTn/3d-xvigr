@@ -403,7 +403,7 @@ class Model3DETR(nn.Module):
         batch_size, num_proposal = features.shape[:2]
 
         #features = self.mhatt(features, features, features, proposal_masks)
-        features = self.self_attn[0](features, features, features, way='mul')
+        features = self.self_attn[0](features, features, features, attention_weights=None, way='mul')
 
         len_nun_max = data_dict["lang_feat_list"].shape[1]
 
@@ -422,7 +422,7 @@ class Model3DETR(nn.Module):
         # match
         feature1_agg = feature1
         # box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
-        box_feature_ref = feature1_agg.permute(0, 2, 1).contiguous()
+        box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
 
         confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
         # print("confidence1", confidence1.shape)

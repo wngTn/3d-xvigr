@@ -126,6 +126,7 @@ class MatchModule(nn.Module):
 
         # print("feature1", feature1.shape)
         # match
+        import ipdb; ipdb.set_trace()
         feature1_agg = feature1
         feature1_agg = feature1_agg.permute(0, 2, 1).contiguous()
 
