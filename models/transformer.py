@@ -360,6 +360,7 @@ class TransformerDecoderLayer(nn.Module):
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
         self.norm3 = NORM_DICT[norm_fn_name](d_model)
         self.norm4 = NORM_DICT[norm_fn_name](d_model)
+        self.norm4_1 = NORM_DICT[norm_fn_name](d_model)
         self.norm5 = NORM_DICT[norm_fn_name](d_model)
 
         self.dropout1 = nn.Dropout(dropout, inplace=False)
@@ -464,11 +465,12 @@ class TransformerDecoderLayer(nn.Module):
             lang_fea,
             lang_mask,
         )
+        tgt2 = tgt2.permute(1, 0, 2)
         # tgt_ref is now (128, 256, 256)
 
         # for all queries
         tgt_all_queries2 = tgt2.clone()
-        tgt_all_queries2 = tgt_all_queries2.permute(1, 0, 2).contiguous()
+        tgt_all_queries2 = self.norm4_1(tgt_all_queries2)
         tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear1_ref(tgt_all_queries2))))
         tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
 
