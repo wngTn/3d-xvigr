@@ -374,9 +374,9 @@ class Model3DETR(nn.Module):
                                     lang_fea,
                                     lang_mask=lang_attention_mask,
                                     query_pos=query_embed_input,
-                                    pos=enc_pos_input)[:2]
+                                    pos=enc_pos_input)[0]
         
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         box_features = box_feature_ref.clone()
         box_features = box_features.reshape(-1, len_nun_max, 256)
         box_features = self.feature_down(box_features)
