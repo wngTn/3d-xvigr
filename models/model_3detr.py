@@ -263,13 +263,13 @@ class Model3DETR(nn.Module):
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
         box_features_ref = box_features_ref.permute(1, 0, 2)
-        _, batch_ref, _, _ = (
-            box_features_ref.shape[0],
-            box_features_ref.shape[1],
-            box_features_ref.shape[2],
-            box_features_ref.shape[3],
-        )
-        box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
+        # _, batch_ref, _, _ = (
+        #     box_features_ref.shape[0],
+        #     box_features_ref.shape[1],
+        #     box_features_ref.shape[2],
+        #     box_features_ref.shape[3],
+        # )
+        # box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
