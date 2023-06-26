@@ -128,21 +128,21 @@ class Model3DETR(nn.Module):
         self.num_queries = num_queries
         self.box_processor = BoxProcessor(dataset_config)
 
-        self.feature_down = nn.Sequential(
-            nn.Conv1d(16, 16, 1),
-            nn.BatchNorm1d(16),
-            nn.PReLU(16),
-            nn.Conv1d(16, 8, 1),
-            nn.BatchNorm1d(8),
-            nn.PReLU(8),
-            nn.Conv1d(8, 4, 1),
-            nn.BatchNorm1d(4),
-            nn.PReLU(4),
-            nn.Conv1d(4, 1, 1),
-            nn.BatchNorm1d(1),
-            nn.PReLU(1),
-            nn.Conv1d(1, 1, 1),
-        )
+
+        hidden_size = 256
+        head = 4
+        depth = 8
+        self.self_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
+        self.cross_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth)) 
+
+        self.features_concat = nn.Sequential(
+            nn.Conv1d(2048, hidden_size, 1),
+            nn.BatchNorm1d(hidden_size),
+            nn.PReLU(hidden_size),
+            nn.Conv1d(hidden_size, hidden_size, 1),
+        ) 
 
         self.hidden_size = 256
 
@@ -251,14 +251,14 @@ class Model3DETR(nn.Module):
         )
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
-        box_features_ref = box_features_ref.permute(0, 2, 3, 1)
-        _, batch_ref, _, _ = (
-            box_features_ref.shape[0],
-            box_features_ref.shape[1],
-            box_features_ref.shape[2],
-            box_features_ref.shape[3],
-        )
-        box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
+        box_features_ref = box_features_ref.permute(1, 0, 2)
+        # _, batch_ref, _, _ = (
+        #     box_features_ref.shape[0],
+        #     box_features_ref.shape[1],
+        #     box_features_ref.shape[2],
+        #     box_features_ref.shape[3],
+        # )
+        # box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
@@ -270,7 +270,7 @@ class Model3DETR(nn.Module):
 
         # reshape outputs to num_layers x batch x nqueries x noutput
         cls_logits = cls_logits.reshape(num_layers, batch, num_queries, -1)
-        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
+        # ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
         center_offset = center_offset.reshape(num_layers, batch, num_queries, -1)
         size_normalized = size_normalized.reshape(num_layers, batch, num_queries, -1)
         angle_logits = angle_logits.reshape(num_layers, batch, num_queries, -1)
@@ -296,7 +296,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits[l])
+                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
@@ -351,38 +351,67 @@ class Model3DETR(nn.Module):
 
         # import ipdb; ipdb.set_trace()
         # shape = (batch_size * 48, <>, 256)
-        lang_fea = data_dict["lang_fea"]
-        lang_attention_mask = data_dict["attention_mask"]
+        # lang_fea = data_dict["lang_fea"]
+        # lang_attention_mask = data_dict["attention_mask"]
 
-        batch_size = tgt.shape[1]
-        len_nun_max = lang_fea.shape[0] // batch_size
+        # batch_size = tgt.shape[1]
+        # len_nun_max = lang_fea.shape[0] // batch_size
 
-        tgt_clone = tgt.clone()
-        tgt_input = tgt_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        # tgt_clone = tgt.clone()
+        # tgt_input = tgt_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-        enc_feature_clone = enc_features.clone()
-        enc_feature_input = enc_feature_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        # enc_feature_clone = enc_features.clone()
+        # enc_feature_input = enc_feature_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-        query_embed_clone = query_embed.clone()
-        query_embed_input = query_embed_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        # query_embed_clone = query_embed.clone()
+        # query_embed_input = query_embed_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-        enc_pos_clone = enc_pos.clone()
-        enc_pos_input = enc_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        # enc_pos_clone = enc_pos.clone()
+        # enc_pos_input = enc_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-        box_feature_ref = self.decoder(tgt_input,
-                                    enc_feature_input,
-                                    lang_fea,
-                                    lang_mask=lang_attention_mask,
-                                    query_pos=query_embed_input,
-                                    pos=enc_pos_input)[0]
+        box_features = self.decoder(tgt,
+                                    enc_features,
+                                    query_pos=query_embed,
+                                    pos=enc_pos)[0]
         
         # import ipdb; ipdb.set_trace()
-        box_features = box_feature_ref.clone()
-        box_features = box_features.reshape(-1, len_nun_max, 256)
-        box_features = self.feature_down(box_features)
-        box_features = box_features.reshape(-1, 256, batch_size, 256)
-
         data_dict["box_features"] = box_features
+
+        features = box_features.clone()
+        features = features.permute(2, 0, 3, 1)
+        batch, num_layers, channel, num_queries = (
+            features.shape[0],
+            features.shape[1],
+            features.shape[2],
+            features.shape[3],
+        )
+        # features = features[:, -1, :, :]
+        features = features.reshape(batch, channel * num_layers, num_queries)
+
+        features = self.features_concat(features).permute(0, 2, 1)
+        batch_size, num_proposal = features.shape[:2]
+
+        #features = self.mhatt(features, features, features, proposal_masks)
+        features = self.self_attn[0](features, features, features, way='mul')
+
+        len_nun_max = data_dict["lang_feat_list"].shape[1]
+
+        # copy paste
+        feature0 = features.clone()
+        feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
+        lang_fea = data_dict["lang_fea"]
+        feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
+
+        for _ in range(self.depth):
+            feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=None, way='mul')
+            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
+            feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
+
+        # print("feature1", feature1.shape)
+        # match
+        feature1_agg = feature1
+        box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
+
 
         box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_feature_ref)
         data_dict.update(box_predictions["outputs"])
