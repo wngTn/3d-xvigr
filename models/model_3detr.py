@@ -422,7 +422,7 @@ class Model3DETR(nn.Module):
         # match
         feature1_agg = feature1
         # box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
-        box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
+        box_feature_ref = feature1_agg.permute(0, 2, 1).contiguous()
 
         confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
         # print("confidence1", confidence1.shape)
