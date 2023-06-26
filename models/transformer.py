@@ -422,7 +422,7 @@ class TransformerDecoderLayer(nn.Module):
                     return_attn_weights: Optional[bool] = False,
                     is_last_layer: Optional[bool] = False):
         # Self Attention with the target
-        import ipdb; ipdb.set_trace()
+        
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
@@ -448,7 +448,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # Cross Attention with language features
         # Copy Code from Match Module
-
+        import ipdb; ipdb.set_trace()
         tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
@@ -456,22 +456,23 @@ class TransformerDecoderLayer(nn.Module):
         feature0 = tgt2.clone()
         tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
         tgt_ref = tgt_ref.permute(1, 0, 2)
-        tgt_ref = self.cross_attn(
+        tgt2 = self.cross_attn(
             tgt_ref,
             lang_fea,
             lang_fea,
             lang_mask,
+            lang_mask,
         )
 
-        tgt_ref = tgt + self.dropout4(tgt_ref)
+        tgt = tgt2 + self.dropout4(tgt_ref)
 
-        tgt_all_queries = tgt_ref.clone()
+        tgt_all_queries = tgt.clone()
         tgt_all_queries = tgt_all_queries.permute(0, 2, 1).contigious()
 
         tgt_together = tgt_all_queries.clone()
-        tgt_together = tgt_together.reshape(-1, 16, 256)
+        tgt_together = tgt_together.reshape(-1, len_nun_max, 256)
         tgt_together = self.feature_down(tgt_all_queries)
-        tgt_together = tgt_together.reshape(256, 8, 1, 256)
+        tgt_together = tgt_together.reshape(256, batch_size, 1, 256)
         tgt_together = tgt_together.squeeze(2)
 
         tgt2 = self.norm5(tgt)
