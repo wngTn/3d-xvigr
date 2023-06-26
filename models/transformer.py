@@ -464,16 +464,16 @@ class TransformerDecoderLayer(nn.Module):
             lang_mask,
         )
 
-        tgt = tgt2 + self.dropout4(tgt_ref)
-
-        tgt_all_queries = tgt.clone()
-        tgt_all_queries = tgt_all_queries.permute(0, 2, 1).contigious()
+        tgt_all_queries = tgt2.clone()
+        tgt_all_queries = tgt_all_queries.permute(1, 0, 2).contiguous()
 
         tgt_together = tgt_all_queries.clone()
         tgt_together = tgt_together.reshape(-1, len_nun_max, 256)
-        tgt_together = self.feature_down(tgt_all_queries)
+        tgt_together = self.feature_down(tgt_together)
         tgt_together = tgt_together.reshape(256, batch_size, 1, 256)
         tgt_together = tgt_together.squeeze(2)
+
+        tgt = tgt + self.dropout4(tgt_together)
 
         tgt2 = self.norm5(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
