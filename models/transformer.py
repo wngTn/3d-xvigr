@@ -339,7 +339,7 @@ class TransformerDecoderLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.self_attn2 = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
@@ -427,14 +427,15 @@ class TransformerDecoderLayer(nn.Module):
         # tgt = tgt + self.dropout3(tgt2)
 
         # Add a layer of self attention
-        tgt2 = self.norm3(tgt)
-        q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn2(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        tgt = tgt + self.dropout3(tgt2)
+        # tgt2 = self.norm3(tgt)
+        # q = k = self.with_pos_embed(tgt2, query_pos)
+        # tgt2 = self.self_attn2(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        # tgt = tgt + self.dropout3(tgt2)
+        tgt = self.self_attn2(tgt, tgt, tgt, way='mul')
 
         # Cross Attention with language features
         # import ipdb; ipdb.set_trace()
-        tgt2 = self.norm4(tgt)
+        # tgt2 = self.norm4(tgt)
         tgt2 = tgt2.permute(1, 0, 2)
         tgt2 = self.cross_attn(
             tgt2,
@@ -443,7 +444,7 @@ class TransformerDecoderLayer(nn.Module):
             lang_mask,
         )
         tgt2 = tgt2.permute(1, 0, 2)
-        tgt = tgt + self.dropout4(tgt2)
+        # tgt = tgt + self.dropout4(tgt2)
         # tgt_ref is now (256, 128, 256)
 
         tgt2 = self.norm5(tgt)
