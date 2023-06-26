@@ -121,10 +121,10 @@ class TransformerDecoder(nn.Module):
         output = tgt
 
         intermediate = []
+        intermediate_ref = []
         attns = []
-        for j, layer in enumerate(self.layers):
-            is_last_layer = j == len(self.layers) - 1
-            output, attn = layer(output,
+        for layer in enumerate(self.layers):
+            output, output_ref, attn = layer(output,
                                  memory,
                                  lang_fea,
                                  tgt_mask=tgt_mask,
@@ -134,15 +134,10 @@ class TransformerDecoder(nn.Module):
                                  memory_key_padding_mask=memory_key_padding_mask,
                                  pos=pos,
                                  query_pos=query_pos,
-                                 return_attn_weights=return_attn_weights,
-                                 is_last_layer=is_last_layer)
-            if is_last_layer:
-                # import ipdb; ipdb.set_trace()
-                output, output_ref = output
-            else:
-                output = output
+                                 return_attn_weights=return_attn_weights)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
+                intermediate_ref.append(self.norm_ref(output_ref))
             if return_attn_weights:
                 attns.append(attn)
 
@@ -152,12 +147,14 @@ class TransformerDecoder(nn.Module):
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
+                intermediate_ref.pop()
+                intermediate_ref.append(output_ref)
 
         if return_attn_weights:
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), output_ref, attns
+            return torch.stack(intermediate), torch.stack(output_ref), attns
 
         return output, output_ref, attns
 
@@ -421,8 +418,7 @@ class TransformerDecoderLayer(nn.Module):
                     memory_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None,
-                    return_attn_weights: Optional[bool] = False,
-                    is_last_layer: Optional[bool] = False):
+                    return_attn_weights: Optional[bool] = False):
         # Self Attention with the target
         
         tgt2 = self.norm1(tgt)
@@ -449,8 +445,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
 
         # Cross Attention with language features
-        # Copy Code from Match Module
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
@@ -463,31 +458,30 @@ class TransformerDecoderLayer(nn.Module):
             lang_fea,
             lang_fea,
             lang_mask,
-            lang_mask,
         )
+        # tgt_ref is now (128, 256, 256)
 
-        tgt_all_queries = tgt2.clone()
-        tgt_all_queries = tgt_all_queries.permute(1, 0, 2).contiguous()
+        # for all queries
+        tgt_all_queries2 = tgt2.clone()
+        tgt_all_queries2 = tgt_all_queries2.permute(1, 0, 2).contiguous()
+        tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear_ref1(tgt_all_queries2))))
+        tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
 
-        tgt_together = tgt_all_queries.clone()
-        tgt_together = tgt_together.reshape(-1, len_nun_max, 256)
-        tgt_together = self.feature_down(tgt_together)
-        tgt_together = tgt_together.reshape(256, batch_size, 1, 256)
-        tgt_together = tgt_together.squeeze(2)
-
-        tgt = tgt + self.dropout4(tgt_together)
+        # all together
+        tgt_together2 = tgt2.clone()
+        tgt_together2 = tgt_together2.reshape(-1, len_nun_max, 256)
+        tgt_together2 = self.feature_down(tgt_together2)
+        tgt_together2 = tgt_together2.reshape(256, batch_size, 1, 256)
+        tgt_together2 = tgt_together2.squeeze(2)
+        tgt= tgt + self.dropout4_2(tgt_together2)
 
         tgt2 = self.norm5(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout5(tgt2)
 
-        if is_last_layer:
-            results = [tgt, tgt_all_queries]
-        else:
-            results = tgt
         if return_attn_weights:
-            return results, attn
-        return results, None
+            return tgt, tgt_all_queries, attn
+        return tgt, tgt_all_queries, None
 
     def forward(self,
                 tgt,
@@ -500,10 +494,9 @@ class TransformerDecoderLayer(nn.Module):
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None,
-                return_attn_weights: Optional[bool] = False,
-                is_last_layer: Optional[bool] = False):
+                return_attn_weights: Optional[bool] = False):
         if self.normalize_before:
             return self.forward_pre(tgt, memory, lang_fea, tgt_mask, memory_mask, lang_mask, tgt_key_padding_mask,
-                                    memory_key_padding_mask, pos, query_pos, return_attn_weights, is_last_layer)
+                                    memory_key_padding_mask, pos, query_pos, return_attn_weights)
         return self.forward_post(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos,
                                  query_pos, return_attn_weights)

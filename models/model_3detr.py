@@ -225,7 +225,7 @@ class Model3DETR(nn.Module):
             box_features: num_layers x num_queries x batch x channel
         """
         # box_features change to (num_layers x batch) x channel x num_queries
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         box_features = box_features.permute(0, 2, 3, 1)
         num_layers, batch, channel, num_queries = (
             box_features.shape[0],
@@ -234,7 +234,15 @@ class Model3DETR(nn.Module):
             box_features.shape[3],
         )
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
-        box_features_ref = box_features_ref.permute(1, 0, 2)
+
+        box_features_ref = box_features_ref.permute(0, 2, 3, 1)
+        _, batch_ref, _, _ = (
+            box_features_ref.shape[0],
+            box_features_ref.shape[1],
+            box_features_ref.shape[2],
+            box_features_ref.shape[3],
+        )
+        box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
@@ -246,7 +254,7 @@ class Model3DETR(nn.Module):
 
         # reshape outputs to num_layers x batch x nqueries x noutput
         cls_logits = cls_logits.reshape(num_layers, batch, num_queries, -1)
-        # ref_conf_logits = ref_conf_logits.reshape(num_layers, batch * 16, num_queries, -1)
+        ref_conf_logits = ref_conf_logits.reshape(num_layers, batch_ref, num_queries, -1)
         center_offset = center_offset.reshape(num_layers, batch, num_queries, -1)
         size_normalized = size_normalized.reshape(num_layers, batch, num_queries, -1)
         angle_logits = angle_logits.reshape(num_layers, batch, num_queries, -1)
@@ -272,7 +280,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
+                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits[l])
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
@@ -328,14 +336,7 @@ class Model3DETR(nn.Module):
         # import ipdb; ipdb.set_trace()
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
-        # shape = (seq_len, batch_size * 48, 256)
-        # lang_fea = lang_fea.permute(1, 0, 2)
-        # box_features.shape = (8, 256, 8, 256)
-        # shape = (128, seq_len)
-        lang_attention_mask = data_dict["attention_mask"] #.reshape(lang_fea.shape[1], -1)
-        # lang_attention_mask = lang_attention_mask.unsqueeze(1)  # Now shape is (128, 1, 50)
-        # lang_attention_mask = lang_attention_mask.repeat(1, 256, 1)  # Now shape is (128, 256, 50)
-        # lang_attention_mask = lang_attention_mask.repeat(4, 1, 1)
+        lang_attention_mask = data_dict["attention_mask"]
         box_features, box_feature_ref = self.decoder(tgt,
                                     enc_features,
                                     lang_fea,
