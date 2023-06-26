@@ -469,7 +469,7 @@ class TransformerDecoderLayer(nn.Module):
         # for all queries
         tgt_all_queries2 = tgt2.clone()
         tgt_all_queries2 = tgt_all_queries2.permute(1, 0, 2).contiguous()
-        tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear_ref1(tgt_all_queries2))))
+        tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear1_ref(tgt_all_queries2))))
         tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
 
         # all together
