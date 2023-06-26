@@ -128,6 +128,22 @@ class Model3DETR(nn.Module):
         self.num_queries = num_queries
         self.box_processor = BoxProcessor(dataset_config)
 
+        self.feature_down = nn.Sequential(
+            nn.Conv1d(16, 16, 1),
+            nn.BatchNorm1d(16),
+            nn.PReLU(16),
+            nn.Conv1d(16, 8, 1),
+            nn.BatchNorm1d(8),
+            nn.PReLU(8),
+            nn.Conv1d(8, 4, 1),
+            nn.BatchNorm1d(4),
+            nn.PReLU(4),
+            nn.Conv1d(4, 1, 1),
+            nn.BatchNorm1d(1),
+            nn.PReLU(1),
+            nn.Conv1d(1, 1, 1),
+        )
+
         self.hidden_size = 256
 
     def build_mlp_heads(self, dataset_config, decoder_dim, mlp_dropout):
@@ -337,13 +353,34 @@ class Model3DETR(nn.Module):
         # shape = (batch_size * 48, <>, 256)
         lang_fea = data_dict["lang_fea"]
         lang_attention_mask = data_dict["attention_mask"]
-        
-        box_features, box_feature_ref = self.decoder(tgt,
-                                    enc_features,
+
+        batch_size = tgt.shape[1]
+        len_nun_max = lang_fea.shape[0] // batch_size
+
+        tgt_clone = tgt.clone()
+        tgt_input = tgt_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        enc_feature_clone = enc_features.clone()
+        enc_feature_input = enc_feature_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        query_embed_clone = query_embed.clone()
+        query_embed_input = query_embed_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        enc_pos_clone = enc_pos.clone()
+        enc_pos_input = enc_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        box_feature_ref = self.decoder(tgt_input,
+                                    enc_feature_input,
                                     lang_fea,
                                     lang_mask=lang_attention_mask,
-                                    query_pos=query_embed,
-                                    pos=enc_pos)[:2]
+                                    query_pos=query_embed_input,
+                                    pos=enc_pos_input)[:2]
+        
+        import ipdb; ipdb.set_trace()
+        box_features = box_feature_ref.clone()
+        box_features = box_features.reshape(-1, len_nun_max, 256)
+        box_features = self.feature_down(box_features)
+        box_features = box_features.reshape(-1, 256, batch_size, 256)
 
         data_dict["box_features"] = box_features
 

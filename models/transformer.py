@@ -88,7 +88,6 @@ class TransformerDecoder(nn.Module):
         self.norm = None
         if norm_fn_name is not None:
             self.norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
-            self.norm_ref = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
         self.return_intermediate = return_intermediate
         self._reset_parameters(weight_init_name)
 
@@ -121,10 +120,9 @@ class TransformerDecoder(nn.Module):
         output = tgt
 
         intermediate = []
-        intermediate_ref = []
         attns = []
         for layer in self.layers:
-            output, output_ref, attn = layer(output,
+            output, attn = layer(output,
                                  memory,
                                  lang_fea,
                                  tgt_mask=tgt_mask,
@@ -137,26 +135,22 @@ class TransformerDecoder(nn.Module):
                                  return_attn_weights=return_attn_weights)
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
-                intermediate_ref.append(self.norm_ref(output_ref))
             if return_attn_weights:
                 attns.append(attn)
 
         if self.norm is not None:
             output = self.norm(output)
-            output_ref = self.norm_ref(output_ref)
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
-                intermediate_ref.pop()
-                intermediate_ref.append(output_ref)
 
         if return_attn_weights:
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), torch.stack(intermediate_ref), attns
+            return torch.stack(intermediate), attns
 
-        return output, output_ref, attns
+        return output, attns
 
 
 class MaskedTransformerEncoder(TransformerEncoder):
@@ -349,44 +343,22 @@ class TransformerDecoderLayer(nn.Module):
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
-        self.feature_down = nn.Sequential(
-            nn.Conv1d(16, 16, 1),
-            nn.BatchNorm1d(16),
-            nn.PReLU(16),
-            nn.Conv1d(16, 8, 1),
-            nn.BatchNorm1d(8),
-            nn.PReLU(8),
-            nn.Conv1d(8, 4, 1),
-            nn.BatchNorm1d(4),
-            nn.PReLU(4),
-            nn.Conv1d(4, 1, 1),
-            nn.BatchNorm1d(1),
-            nn.PReLU(1),
-            nn.Conv1d(1, 1, 1),
-        )
-
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
         self.norm3 = NORM_DICT[norm_fn_name](d_model)
         self.norm4 = NORM_DICT[norm_fn_name](d_model)
-        self.norm4_1 = NORM_DICT[norm_fn_name](d_model)
         self.norm5 = NORM_DICT[norm_fn_name](d_model)
 
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
         self.dropout3 = nn.Dropout(dropout, inplace=False)
-        self.dropout4_1 = nn.Dropout(dropout, inplace=False)
-        self.dropout4_2 = nn.Dropout(dropout, inplace=False)
+        self.dropout4 = nn.Dropout(dropout, inplace=False)
         self.dropout5 = nn.Dropout(dropout, inplace=False)
 
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout, inplace=False)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
-
-        self.linear1_ref = nn.Linear(d_model, dim_feedforward)
-        self.dropout_ref = nn.Dropout(dropout, inplace=False)
-        self.linear2_ref = nn.Linear(dim_feedforward, d_model)
 
         self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
@@ -440,6 +412,7 @@ class TransformerDecoderLayer(nn.Module):
         q = k = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
+
         # Cross Attention with encoder features
         tgt2 = self.norm2(tgt)
         tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
@@ -462,43 +435,24 @@ class TransformerDecoderLayer(nn.Module):
         # Cross Attention with language features
         # import ipdb; ipdb.set_trace()
         tgt2 = self.norm4(tgt)
-        batch_size = tgt.shape[1]
-        len_nun_max = lang_fea.shape[0] // batch_size
-        # copy paste
-        feature0 = tgt2.clone()
-        tgt_ref = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-        tgt_ref = tgt_ref.permute(1, 0, 2)
+        tgt2 = tgt2.permute(1, 0, 2)
         tgt2 = self.cross_attn(
-            tgt_ref,
+            tgt2,
             lang_fea,
             lang_fea,
             lang_mask,
         )
         tgt2 = tgt2.permute(1, 0, 2)
+        tgt = tgt + self.dropout4(tgt2)
         # tgt_ref is now (256, 128, 256)
-
-        # for all queries
-        tgt_all_queries2 = tgt2.clone()
-        # tgt_all_queries2 = self.norm4_1(tgt_all_queries2)
-        # tgt_all_queries2 = self.linear2_ref(self.dropout_ref(self.activation(self.linear1_ref(tgt_all_queries2))))
-        # tgt_all_queries = tgt_all_queries2 + self.dropout4_1(tgt2)
-        tgt_all_queries = tgt_all_queries2
-
-        # all together
-        tgt_together2 = tgt2.clone()
-        tgt_together2 = tgt_together2.reshape(-1, len_nun_max, 256)
-        tgt_together2 = self.feature_down(tgt_together2)
-        tgt_together2 = tgt_together2.reshape(256, batch_size, 1, 256)
-        tgt_together2 = tgt_together2.squeeze(2)
-        tgt= tgt + self.dropout4_2(tgt_together2)
 
         tgt2 = self.norm5(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout5(tgt2)
 
         if return_attn_weights:
-            return tgt, tgt_all_queries, attn
-        return tgt, tgt_all_queries, None
+            return tgt, attn
+        return tgt, None
 
     def forward(self,
                 tgt,
