@@ -133,7 +133,7 @@ def get_solver(args, dataloader):
         weight_dict = {}
         model_3detr_weight_keys = [line.rstrip('\n') for line in open('data/model_3detr_weights.txt', 'r')]
         for model_3detr_weight_key in model_3detr_weight_keys:
-            weight_dict[model_3detr_weight_key] = {'lr': 0.0001}
+            weight_dict[model_3detr_weight_key] = {'lr': args.lr}
         weight_dict['lang'] = {'lr': 0.0005}
         weight_dict['match'] = {'lr': 0.0005}
     params = set_params_lr_dict(model, base_lr=args.lr, weight_decay=args.weight_decay, weight_dict=weight_dict)
