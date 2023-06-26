@@ -88,6 +88,7 @@ class TransformerDecoder(nn.Module):
         self.norm = None
         if norm_fn_name is not None:
             self.norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
+            self.norm_ref = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
         self.return_intermediate = return_intermediate
         self._reset_parameters(weight_init_name)
 
@@ -136,7 +137,7 @@ class TransformerDecoder(nn.Module):
                                  return_attn_weights=return_attn_weights,
                                  is_last_layer=is_last_layer)
             if is_last_layer:
-                import ipdb; ipdb.set_trace()
+                # import ipdb; ipdb.set_trace()
                 output, output_ref = output
             else:
                 output = output
@@ -147,7 +148,7 @@ class TransformerDecoder(nn.Module):
 
         if self.norm is not None:
             output = self.norm(output)
-            output_ref = self.norm(output_ref)
+            output_ref = self.norm_ref(output_ref)
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
