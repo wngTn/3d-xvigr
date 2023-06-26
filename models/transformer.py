@@ -136,9 +136,10 @@ class TransformerDecoder(nn.Module):
                                  return_attn_weights=return_attn_weights,
                                  is_last_layer=is_last_layer)
             if is_last_layer:
+                import ipdb; ipdb.set_trace()
                 output, output_ref = output
             else:
-                output = output[0]
+                output = output
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
             if return_attn_weights:
@@ -448,7 +449,7 @@ class TransformerDecoderLayer(nn.Module):
 
         # Cross Attention with language features
         # Copy Code from Match Module
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         tgt2 = self.norm4(tgt)
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
