@@ -579,9 +579,9 @@ class TransformerDecoderLanguageLayer(nn.Module):
         tgt = tgt.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
 
-        tgt2 = self.norm5(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        tgt = tgt + self.dropout5(tgt2)
+        # tgt2 = self.norm5(tgt)
+        # tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        # tgt = tgt + self.dropout5(tgt2)
 
         if return_attn_weights:
             return tgt, attn
