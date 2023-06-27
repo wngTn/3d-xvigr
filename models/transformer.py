@@ -191,8 +191,8 @@ class TransformerDecoder(nn.Module):
             # output = output.max(dim=1)[0]
             output = output.reshape(tgt.shape[2], batch_size, 256)
 
-            # if self.return_intermediate:
-                # intermediate.append(self.norm(output))
+            if self.return_intermediate:
+                intermediate.append(self.norm(output))
             if return_attn_weights:
                 attns.append(attn)
 
@@ -506,7 +506,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        # self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
         # self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
@@ -561,7 +561,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         # Add a layer of self attention
         tgt = tgt.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
-        # tgt = self.self_attn2(tgt, tgt, tgt, attention_weights=None, way='mul')
+        tgt = self.self_attn2(tgt, tgt, tgt, attention_weights=None, way='mul')
 
 
         # tgt2 = self.norm4(tgt)
@@ -572,7 +572,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
             lang_mask,
         )
 
-        tgt = tgt.permute(1, 0, 2).contiguous()
+        tgt = tgt.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
 
         # tgt2 = self.norm3(tgt)
