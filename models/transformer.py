@@ -84,7 +84,7 @@ class TransformerDecoder(nn.Module):
                  return_intermediate=False,
                  weight_init_name="xavier_uniform"):
         super().__init__()
-        self.layers = get_clones(decoder_layer, decoder_language, num_layers)
+        self.layers = get_clones(decoder_layer, num_layers, decoder_language)
         self.num_layers = num_layers
         self.norm = None
         if norm_fn_name is not None:
