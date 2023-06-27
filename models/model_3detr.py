@@ -12,7 +12,7 @@ from lib.pointnet2.pointnet2_utils import scale_points, shift_scale_points, furt
 from models.helpers import GenericMLP
 from models.position_embedding import PositionEmbeddingCoordsSine
 from models.transformer import (MaskedTransformerEncoder, TransformerDecoder, TransformerDecoderLayer,
-                                TransformerEncoder, TransformerEncoderLayer)
+                                TransformerEncoder, TransformerEncoderLayer, TransformerDecoderLanguageLayer)
 from models.transformer_utils.attention import MultiHeadAttention
 import random
 
@@ -59,7 +59,7 @@ class BoxProcessor(object):
         return cls_prob[..., :-1], objectness_prob
 
     def compute_reference_confidence(self, ref_conf_logits):
-        ref_conf_prob = ref_conf_logits.squeeze(1) # .view(-1, 256)
+        ref_conf_prob = ref_conf_logits.squeeze(1)  # .view(-1, 256)
         return ref_conf_prob
 
     def box_parametrization_to_corners(self, box_center_unnorm, box_size_unnorm, box_angle):
@@ -128,32 +128,27 @@ class Model3DETR(nn.Module):
         self.num_queries = num_queries
         self.box_processor = BoxProcessor(dataset_config)
 
-
         hidden_size = 256
         head = 4
         depth = 2
         self.depth = depth - 1
         self.self_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head)
+            for i in range(depth))
         self.cross_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth)) 
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head)
+            for i in range(depth))
 
         self.features_concat = nn.Sequential(
             nn.Conv1d(2048, hidden_size, 1),
             nn.BatchNorm1d(hidden_size),
             nn.PReLU(hidden_size),
             nn.Conv1d(hidden_size, hidden_size, 1),
-        ) 
-
-        self.match = nn.Sequential(
-            nn.Conv1d(hidden_size, hidden_size, 1),
-            nn.BatchNorm1d(hidden_size),
-            nn.PReLU(),
-            nn.Conv1d(hidden_size, hidden_size, 1),
-            nn.BatchNorm1d(hidden_size),
-            nn.PReLU(),
-            nn.Conv1d(hidden_size, 1, 1)
         )
+
+        self.match = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, 1), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+                                   nn.Conv1d(hidden_size, hidden_size, 1), nn.BatchNorm1d(hidden_size), nn.PReLU(),
+                                   nn.Conv1d(hidden_size, 1, 1))
 
         self.hidden_size = 256
 
@@ -174,15 +169,10 @@ class Model3DETR(nn.Module):
 
         # Confidence Scores of the boxes
         hidden_size = 256
-        reference_confidence_head = nn.Sequential(
-            nn.Conv1d(hidden_size, hidden_size, 1),
-            nn.BatchNorm1d(hidden_size),
-            nn.PReLU(),
-            nn.Conv1d(hidden_size, hidden_size, 1),
-            nn.BatchNorm1d(hidden_size),
-            nn.PReLU(),
-            nn.Conv1d(hidden_size, 1, 1)
-        ) # self.match# mlp_func(output_dim=1)
+        reference_confidence_head = nn.Sequential(nn.Conv1d(hidden_size, hidden_size, 1), nn.BatchNorm1d(hidden_size),
+                                                  nn.PReLU(), nn.Conv1d(hidden_size, hidden_size, 1),
+                                                  nn.BatchNorm1d(hidden_size), nn.PReLU(),
+                                                  nn.Conv1d(hidden_size, 1, 1))  # self.match# mlp_func(output_dim=1)
 
         # geometry of the box
         center_head = mlp_func(output_dim=3)
@@ -252,7 +242,7 @@ class Model3DETR(nn.Module):
             box_features: num_layers x num_queries x batch x channel
         """
         # box_features change to (num_layers x batch) x channel x num_queries
-        # import ipdb; ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
         box_features = box_features.permute(0, 2, 3, 1)
         num_layers, batch, channel, num_queries = (
             box_features.shape[0],
@@ -262,18 +252,13 @@ class Model3DETR(nn.Module):
         )
         box_features = box_features.reshape(num_layers * batch, channel, num_queries)
 
-        # box_features_ref = box_features_ref.permute(1, 0, 2)
-        # _, batch_ref, _, _ = (
-        #     box_features_ref.shape[0],
-        #     box_features_ref.shape[1],
-        #     box_features_ref.shape[2],
-        #     box_features_ref.shape[3],
-        # )
-        # box_features_ref = box_features_ref.reshape(num_layers * batch_ref, channel, num_queries)
+        # (NQUERY, BATCH, DIMENSION)
+        box_features_ref = box_features_ref.permute(1, 2, 0)
+        # -> (BATCH, DIMENSION, NQUERY)
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref) # .transpose(1, 2)
+        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref)  # .transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
@@ -299,7 +284,7 @@ class Model3DETR(nn.Module):
             size_unnormalized = self.box_processor.compute_predicted_size(size_normalized[l], point_cloud_dims)
             box_corners = self.box_processor.box_parametrization_to_corners(center_unnormalized, size_unnormalized,
                                                                             angle_continuous)
-            
+
             # below are not used in computing loss (only for matching/mAP eval)
             # we compute them with no_grad() so that distributed training does not complain about unused variables
             with torch.no_grad():
@@ -362,76 +347,12 @@ class Model3DETR(nn.Module):
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
 
-        # import ipdb; ipdb.set_trace()
-        # shape = (batch_size * 48, <>, 256)
-        # lang_fea = data_dict["lang_fea"]
-        # lang_attention_mask = data_dict["attention_mask"]
+        box_features, box_features_ref = self.decoder(tgt, enc_features, query_pos=query_embed, pos=enc_pos)[0]
 
-        # batch_size = tgt.shape[1]
-        # len_nun_max = lang_fea.shape[0] // batch_size
-
-        # tgt_clone = tgt.clone()
-        # tgt_input = tgt_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-
-        # enc_feature_clone = enc_features.clone()
-        # enc_feature_input = enc_feature_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-
-        # query_embed_clone = query_embed.clone()
-        # query_embed_input = query_embed_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-
-        # enc_pos_clone = enc_pos.clone()
-        # enc_pos_input = enc_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-
-        box_features = self.decoder(tgt,
-                                    enc_features,
-                                    query_pos=query_embed,
-                                    pos=enc_pos)[0]
-        
         # import ipdb; ipdb.set_trace()
         data_dict["box_features"] = box_features
 
-        features = box_features.clone()
-        features = features.permute(2, 0, 3, 1)
-        batch, num_layers, channel, num_queries = (
-            features.shape[0],
-            features.shape[1],
-            features.shape[2],
-            features.shape[3],
-        )
-        # features = features[:, -1, :, :]
-        features = features.reshape(batch, channel * num_layers, num_queries)
-
-        features = self.features_concat(features).permute(0, 2, 1)
-        batch_size, num_proposal = features.shape[:2]
-
-        #features = self.mhatt(features, features, features, proposal_masks)
-        features = self.self_attn[0](features, features, features, attention_weights=None, way='mul')
-
-        len_nun_max = data_dict["lang_feat_list"].shape[1]
-
-        # copy paste
-        feature0 = features.clone()
-        feature1 = feature0[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, num_proposal, -1)
-        lang_fea = data_dict["lang_fea"]
-        feature1 = self.cross_attn[0](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
-
-        for _ in range(self.depth):
-            feature1 = self.self_attn[_+1](feature1, feature1, feature1, attention_weights=None, way='mul')
-            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
-            feature1 = self.cross_attn[_+1](feature1, lang_fea, lang_fea, data_dict["attention_mask"])
-
-        # print("feature1", feature1.shape)
-        # match
-        feature1_agg = feature1
-        # box_feature_ref = feature1_agg.permute(1, 0, 2).contiguous()
-        # import ipdb; ipdb.set_trace()
-        box_feature_ref = feature1_agg.permute(0, 2, 1).contiguous()
-
-        # confidence = self.match(box_feature_ref).squeeze(1)  # batch_size, num_proposals
-        # print("confidence1", confidence1.shape)
-        # data_dict["cluster_ref"] = confidence
-
-        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_feature_ref)
+        box_predictions = self.get_box_predictions(query_xyz, point_cloud_dims, box_features, box_features_ref)
         data_dict.update(box_predictions["outputs"])
         data_dict["aux_outputs"] = box_predictions["aux_outputs"]
         return data_dict  # box_predictions
@@ -494,7 +415,16 @@ def build_decoder(args):
         dim_feedforward=args.dec_ffn_dim,
         dropout=args.dec_dropout,
     )
-    decoder = TransformerDecoder(decoder_layer, num_layers=args.dec_nlayers, return_intermediate=True)
+    decoder_language_layer = TransformerDecoderLanguageLayer(
+        d_model=args.dec_dim,
+        nhead=args.dec_nhead,
+        dim_feedforward=args.dec_ffn_dim,
+        dropout=args.dec_dropout,
+    )
+    decoder = TransformerDecoder(decoder_layer,
+                                 decoder_language_layer,
+                                 num_layers=args.dec_nlayers,
+                                 return_intermediate=True)
     return decoder
 
 

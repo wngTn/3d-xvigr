@@ -12,14 +12,13 @@ from typing import Optional
 import torch
 from torch import Tensor, nn
 
-from models.helpers import (ACTIVATION_DICT, NORM_DICT, WEIGHT_INIT_DICT,
-                            get_clones)
+from models.helpers import (ACTIVATION_DICT, NORM_DICT, WEIGHT_INIT_DICT, get_clones)
+from models.transformer_utils.attention import MultiHeadAttention
 
 
 class TransformerEncoder(nn.Module):
 
-    def __init__(self, encoder_layer, num_layers,
-                 norm=None, weight_init_name="xavier_uniform"):
+    def __init__(self, encoder_layer, num_layers, norm=None, weight_init_name="xavier_uniform"):
         super().__init__()
         self.layers = get_clones(encoder_layer, num_layers)
         self.num_layers = num_layers
@@ -32,13 +31,15 @@ class TransformerEncoder(nn.Module):
             if p.dim() > 1:
                 func(p)
 
-    def forward(self, src,
-                mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
-                pos: Optional[Tensor] = None,
-                xyz: Optional [Tensor] = None,
-                transpose_swap: Optional[bool] = False,
-                ):
+    def forward(
+        self,
+        src,
+        mask: Optional[Tensor] = None,
+        src_key_padding_mask: Optional[Tensor] = None,
+        pos: Optional[Tensor] = None,
+        xyz: Optional[Tensor] = None,
+        transpose_swap: Optional[bool] = False,
+    ):
         if transpose_swap:
             bs, c, h, w = src.shape
             src = src.flatten(2).permute(2, 0, 1)
@@ -60,8 +61,7 @@ class TransformerEncoder(nn.Module):
                 mask = mask.unsqueeze(1)
                 mask = mask.repeat(1, nhead, 1, 1)
                 mask = mask.view(bsz * nhead, n, n)
-            output = layer(output, src_mask=mask,
-                           src_key_padding_mask=src_key_padding_mask, pos=pos)
+            output = layer(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask, pos=pos)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -76,11 +76,15 @@ class TransformerEncoder(nn.Module):
 
 class TransformerDecoder(nn.Module):
 
-    def __init__(self, decoder_layer, num_layers, norm_fn_name="ln",
-                return_intermediate=False,
-                weight_init_name="xavier_uniform"):
+    def __init__(self,
+                 decoder_layer,
+                 decoder_language,
+                 num_layers,
+                 norm_fn_name="ln",
+                 return_intermediate=False,
+                 weight_init_name="xavier_uniform"):
         super().__init__()
-        self.layers = get_clones(decoder_layer, num_layers)
+        self.layers = get_clones(decoder_layer, decoder_language, num_layers)
         self.num_layers = num_layers
         self.norm = None
         if norm_fn_name is not None:
@@ -88,25 +92,46 @@ class TransformerDecoder(nn.Module):
         self.return_intermediate = return_intermediate
         self._reset_parameters(weight_init_name)
 
+        self.feature_down = nn.Sequential(
+            nn.Conv1d(16, 16, 1),
+            nn.BatchNorm1d(16),
+            nn.PReLU(16),
+            nn.Conv1d(16, 8, 1),
+            nn.BatchNorm1d(8),
+            nn.PReLU(8),
+            nn.Conv1d(8, 4, 1),
+            nn.BatchNorm1d(4),
+            nn.PReLU(4),
+            nn.Conv1d(4, 1, 1),
+            nn.BatchNorm1d(1),
+            nn.PReLU(1),
+            nn.Conv1d(1, 1, 1),
+        )
+
     def _reset_parameters(self, weight_init_name):
         func = WEIGHT_INIT_DICT[weight_init_name]
         for p in self.parameters():
             if p.dim() > 1:
                 func(p)
 
-    def forward(self, tgt, memory,
-                tgt_mask: Optional[Tensor] = None,
-                memory_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None,
-                memory_key_padding_mask: Optional[Tensor] = None,
-                pos: Optional[Tensor] = None,
-                query_pos: Optional[Tensor] = None,
-                transpose_swap: Optional [bool] = False,
-                return_attn_weights: Optional [bool] = False,
-                ):
+    def forward(
+        self,
+        tgt,
+        memory,
+        lang_fea,
+        tgt_mask: Optional[Tensor] = None,
+        memory_mask: Optional[Tensor] = None,
+        lang_mask: Optional[Tensor] = None,
+        tgt_key_padding_mask: Optional[Tensor] = None,
+        memory_key_padding_mask: Optional[Tensor] = None,
+        pos: Optional[Tensor] = None,
+        query_pos: Optional[Tensor] = None,
+        transpose_swap: Optional[bool] = False,
+        return_attn_weights: Optional[bool] = False,
+    ):
         if transpose_swap:
             bs, c, h, w = memory.shape
-            memory = memory.flatten(2).permute(2, 0, 1) # memory: bs, c, t -> t, b, c
+            memory = memory.flatten(2).permute(2, 0, 1)  # memory: bs, c, t -> t, b, c
             if pos is not None:
                 pos = pos.flatten(2).permute(2, 0, 1)
         output = tgt
@@ -114,13 +139,56 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         attns = []
 
-        for layer in self.layers:
-            output, attn = layer(output, memory, tgt_mask=tgt_mask,
-                           memory_mask=memory_mask,
-                           tgt_key_padding_mask=tgt_key_padding_mask,
-                           memory_key_padding_mask=memory_key_padding_mask,
-                           pos=pos, query_pos=query_pos,
-                           return_attn_weights=return_attn_weights)
+        for layer in self.layers[:-2]:
+            output, attn = layer(output,
+                                 memory,
+                                 tgt_mask=tgt_mask,
+                                 memory_mask=memory_mask,
+                                 tgt_key_padding_mask=tgt_key_padding_mask,
+                                 memory_key_padding_mask=memory_key_padding_mask,
+                                 pos=pos,
+                                 query_pos=query_pos,
+                                 return_attn_weights=return_attn_weights)
+            if self.return_intermediate:
+                intermediate.append(self.norm(output))
+            if return_attn_weights:
+                attns.append(attn)
+
+        import ipdb; ipdb.set_trace()
+
+        batch_size = tgt.shape[1]
+        len_nun_max = lang_fea.shape[0] // batch_size
+
+        output_clone = output.clone()
+        output_input = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        memory_clone = memory.clone()
+        memory_input = memory_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        query_pos_clone = query_pos.clone()
+        query_pos_input = query_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        pos_clone = pos.clone()
+        pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
+        for language_layer in self.layers[-2:]:
+            output_ref, attn = language_layer(output_input,
+                                 memory_input,
+                                 tgt_mask=tgt_mask,
+                                 memory_mask=memory_mask,
+                                 tgt_key_padding_mask=tgt_key_padding_mask,
+                                 memory_key_padding_mask=memory_key_padding_mask,
+                                 pos=pos_input,
+                                 query_pos=query_pos_input,
+                                 return_attn_weights=return_attn_weights)
+            
+            output = output_ref.clone()
+            output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
+            output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
+            output = self.feature_down(output)
+            output = output.reshape(tgt.shape[2], batch_size, 256)
+            
+
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
             if return_attn_weights:
@@ -136,14 +204,20 @@ class TransformerDecoder(nn.Module):
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), attns
+            return torch.stack(intermediate), output_ref, attns
 
-        return output, attns
+        return output, output_ref, attns
 
 
 class MaskedTransformerEncoder(TransformerEncoder):
-    def __init__(self, encoder_layer, num_layers, masking_radius, interim_downsampling,
-                 norm=None, weight_init_name="xavier_uniform"):
+
+    def __init__(self,
+                 encoder_layer,
+                 num_layers,
+                 masking_radius,
+                 interim_downsampling,
+                 norm=None,
+                 weight_init_name="xavier_uniform"):
         super().__init__(encoder_layer, num_layers, norm=norm, weight_init_name=weight_init_name)
         assert len(masking_radius) == num_layers
         self.masking_radius = masking_radius
@@ -158,13 +232,15 @@ class MaskedTransformerEncoder(TransformerEncoder):
             mask = dist >= radius
         return mask, dist
 
-    def forward(self, src,
-                mask: Optional[Tensor] = None,
-                src_key_padding_mask: Optional[Tensor] = None,
-                pos: Optional[Tensor] = None,
-                xyz: Optional [Tensor] = None,
-                transpose_swap: Optional[bool] = False,
-                ):
+    def forward(
+        self,
+        src,
+        mask: Optional[Tensor] = None,
+        src_key_padding_mask: Optional[Tensor] = None,
+        pos: Optional[Tensor] = None,
+        xyz: Optional[Tensor] = None,
+        transpose_swap: Optional[bool] = False,
+    ):
 
         if transpose_swap:
             bs, c, h, w = src.shape
@@ -203,18 +279,23 @@ class MaskedTransformerEncoder(TransformerEncoder):
             output = output.permute(1, 2, 0).view(bs, c, h, w).contiguous()
 
         return xyz, output, xyz_inds
-    
+
     def extra_repr(self):
-        radius_str = ", ".join(["%.2f"%(x) for x in self.masking_radius])
+        radius_str = ", ".join(["%.2f" % (x) for x in self.masking_radius])
         return f"masking_radius={radius_str}"
-        
 
 
 class TransformerEncoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead=4, dim_feedforward=128,
-                 dropout=0.1, dropout_attn=None,
-                 activation="relu", normalize_before=True, norm_name="ln",
+    def __init__(self,
+                 d_model,
+                 nhead=4,
+                 dim_feedforward=128,
+                 dropout=0.1,
+                 dropout_attn=None,
+                 activation="relu",
+                 normalize_before=True,
+                 norm_name="ln",
                  use_ffn=True,
                  ffn_use_bias=True):
         super().__init__()
@@ -248,8 +329,7 @@ class TransformerEncoderLayer(nn.Module):
                      pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(src, pos)
         value = src
-        src2 = self.self_attn(q, k, value=value, attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)[0]
+        src2 = self.self_attn(q, k, value=value, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
         src = src + self.dropout1(src2)
         if self.use_norm_fn_on_input:
             src = self.norm1(src)
@@ -259,17 +339,21 @@ class TransformerEncoderLayer(nn.Module):
             src = self.norm2(src)
         return src
 
-    def forward_pre(self, src,
+    def forward_pre(self,
+                    src,
                     src_mask: Optional[Tensor] = None,
                     src_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None,
-                    return_attn_weights: Optional [Tensor] = False):
+                    return_attn_weights: Optional[Tensor] = False):
 
         src2 = self.norm1(src)
         value = src2
         q = k = self.with_pos_embed(src2, pos)
-        src2, attn_weights = self.self_attn(q, k, value=value, attn_mask=src_mask,
-                            key_padding_mask=src_key_padding_mask)
+        src2, attn_weights = self.self_attn(q,
+                                            k,
+                                            value=value,
+                                            attn_mask=src_mask,
+                                            key_padding_mask=src_key_padding_mask)
         src = src + self.dropout1(src2)
         if self.use_ffn:
             src2 = self.norm2(src)
@@ -279,11 +363,12 @@ class TransformerEncoderLayer(nn.Module):
             return src, attn_weights
         return src
 
-    def forward(self, src,
+    def forward(self,
+                src,
                 src_mask: Optional[Tensor] = None,
                 src_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
-                return_attn_weights: Optional [Tensor] = False):
+                return_attn_weights: Optional[Tensor] = False):
         if self.normalize_before:
             return self.forward_pre(src, src_mask, src_key_padding_mask, pos, return_attn_weights)
         return self.forward_post(src, src_mask, src_key_padding_mask, pos)
@@ -297,9 +382,14 @@ class TransformerEncoderLayer(nn.Module):
 
 class TransformerDecoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead=4, dim_feedforward=256,
-                 dropout=0.1, dropout_attn=None,
-                 activation="relu", normalize_before=True,
+    def __init__(self,
+                 d_model,
+                 nhead=4,
+                 dim_feedforward=256,
+                 dropout=0.1,
+                 dropout_attn=None,
+                 activation="relu",
+                 normalize_before=True,
                  norm_fn_name="ln"):
         super().__init__()
         if dropout_attn is None:
@@ -326,23 +416,25 @@ class TransformerDecoderLayer(nn.Module):
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos
 
-    def forward_post(self, tgt, memory,
+    def forward_post(self,
+                     tgt,
+                     memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
                      tgt_key_padding_mask: Optional[Tensor] = None,
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None,
-                     return_attn_weights: Optional [bool] = False):
+                     return_attn_weights: Optional[bool] = False):
         q = k = self.with_pos_embed(tgt, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
+        tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
         tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)
+                                         key=self.with_pos_embed(memory, pos),
+                                         value=memory,
+                                         attn_mask=memory_mask,
+                                         key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
         tgt = self.norm2(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
@@ -352,24 +444,26 @@ class TransformerDecoderLayer(nn.Module):
             return tgt, attn
         return tgt, None
 
-    def forward_pre(self, tgt, memory,
+    def forward_pre(self,
+                    tgt,
+                    memory,
                     tgt_mask: Optional[Tensor] = None,
                     memory_mask: Optional[Tensor] = None,
                     tgt_key_padding_mask: Optional[Tensor] = None,
                     memory_key_padding_mask: Optional[Tensor] = None,
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None,
-                    return_attn_weights: Optional [bool] = False):
+                    return_attn_weights: Optional[bool] = False):
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask,
-                              key_padding_mask=tgt_key_padding_mask)[0]
+        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt2 = self.norm2(tgt)
         tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                   key=self.with_pos_embed(memory, pos),
-                                   value=memory, attn_mask=memory_mask,
-                                   key_padding_mask=memory_key_padding_mask)
+                                         key=self.with_pos_embed(memory, pos),
+                                         value=memory,
+                                         attn_mask=memory_mask,
+                                         key_padding_mask=memory_key_padding_mask)
         tgt = tgt + self.dropout2(tgt2)
         tgt2 = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
@@ -378,16 +472,130 @@ class TransformerDecoderLayer(nn.Module):
             return tgt, attn
         return tgt, None
 
-    def forward(self, tgt, memory,
+    def forward(self,
+                tgt,
+                memory,
                 tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 query_pos: Optional[Tensor] = None,
-                return_attn_weights: Optional [bool] = False):
+                return_attn_weights: Optional[bool] = False):
         if self.normalize_before:
-            return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
-                                    tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos, return_attn_weights)
-        return self.forward_post(tgt, memory, tgt_mask, memory_mask,
-                                 tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos, return_attn_weights)
+            return self.forward_pre(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask,
+                                    pos, query_pos, return_attn_weights)
+        return self.forward_post(tgt, memory, tgt_mask, memory_mask, tgt_key_padding_mask, memory_key_padding_mask, pos,
+                                 query_pos, return_attn_weights)
+
+
+class TransformerDecoderLanguageLayer(nn.Module):
+
+    def __init__(self,
+                 d_model,
+                 nhead=4,
+                 dim_feedforward=256,
+                 dropout=0.1,
+                 dropout_attn=None,
+                 activation="relu",
+                 normalize_before=True,
+                 norm_fn_name="ln"):
+        super().__init__()
+        if dropout_attn is None:
+            dropout_attn = dropout
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+
+        self.norm1 = NORM_DICT[norm_fn_name](d_model)
+        self.norm2 = NORM_DICT[norm_fn_name](d_model)
+        self.norm3 = NORM_DICT[norm_fn_name](d_model)
+        self.norm4 = NORM_DICT[norm_fn_name](d_model)
+        self.norm5 = NORM_DICT[norm_fn_name](d_model)
+
+        self.dropout1 = nn.Dropout(dropout, inplace=False)
+        self.dropout2 = nn.Dropout(dropout, inplace=False)
+        self.dropout3 = nn.Dropout(dropout, inplace=False)
+        self.dropout4 = nn.Dropout(dropout, inplace=False)
+        self.dropout5 = nn.Dropout(dropout, inplace=False)
+
+        # Implementation of Feedforward model
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout, inplace=False)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
+
+        self.activation = ACTIVATION_DICT[activation]()
+        self.normalize_before = normalize_before
+
+    def with_pos_embed(self, tensor, pos: Optional[Tensor]):
+        return tensor if pos is None else tensor + pos
+
+    def forward_pre(self,
+                    tgt,
+                    memory,
+                    lang_fea,
+                    tgt_mask: Optional[Tensor] = None,
+                    memory_mask: Optional[Tensor] = None,
+                    lang_mask: Optional[Tensor] = None,
+                    tgt_key_padding_mask: Optional[Tensor] = None,
+                    memory_key_padding_mask: Optional[Tensor] = None,
+                    pos: Optional[Tensor] = None,
+                    query_pos: Optional[Tensor] = None,
+                    return_attn_weights: Optional[bool] = False):
+        # Self Attention with the target
+        import ipdb; ipdb.set_trace()
+        tgt2 = self.norm1(tgt)
+        q = k = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        tgt = tgt + self.dropout1(tgt2)
+
+        # Cross Attention with encoder features
+        tgt2 = self.norm2(tgt)
+        tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
+                                         key=self.with_pos_embed(memory, pos),
+                                         value=memory,
+                                         attn_mask=memory_mask,
+                                         key_padding_mask=memory_key_padding_mask)
+        tgt = tgt + self.dropout2(tgt2)
+        # (NQUERY, BATCH, DIMENSION)
+
+        # Add a layer of self attention
+        tgt = tgt.permute(1, 0, 2)  # (BATCH, NQUERY, DIMENSION)
+        # (BATCH, NQUERY, DIMENSION)
+        tgt = self.self_attn2(tgt, tgt, tgt, attention_weights=None, way='mul')
+
+
+        # tgt2 = self.norm4(tgt)
+        tgt = self.cross_attn(
+            tgt,
+            lang_fea,
+            lang_fea,
+            lang_mask,
+        )
+
+        tgt = tgt.permute(1, 0, 2)
+        # (NQUERY, BATCH, DIMENSION)
+
+        tgt2 = self.norm5(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        tgt = tgt + self.dropout5(tgt2)
+
+        if return_attn_weights:
+            return tgt, attn
+        return tgt, None
+
+    def forward(self,
+                tgt,
+                memory,
+                lang_fea,
+                tgt_mask: Optional[Tensor] = None,
+                memory_mask: Optional[Tensor] = None,
+                lang_mask: Optional[Tensor] = None,
+                tgt_key_padding_mask: Optional[Tensor] = None,
+                memory_key_padding_mask: Optional[Tensor] = None,
+                pos: Optional[Tensor] = None,
+                query_pos: Optional[Tensor] = None,
+                return_attn_weights: Optional[bool] = False):
+        return self.forward_pre(tgt, memory, lang_fea, tgt_mask, memory_mask, lang_mask, tgt_key_padding_mask,
+                                memory_key_padding_mask, pos, query_pos, return_attn_weights)

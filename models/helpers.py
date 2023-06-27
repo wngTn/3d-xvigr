@@ -112,5 +112,5 @@ class GenericMLP(nn.Module):
         return output
 
 
-def get_clones(module, N):
-    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+def get_clones(module, language_module, N):
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N - 2)] + [copy.deepcopy(language_module) for i in range(2)])
