@@ -307,7 +307,7 @@ class Model3DETR(nn.Module):
                     semcls_prob,
                     objectness_prob,
                 ) = self.box_processor.compute_objectness_and_cls_prob(cls_logits[l])
-                ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
+                # ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
 
             box_prediction = {
                 "sem_cls_logits": cls_logits[l],
@@ -321,7 +321,7 @@ class Model3DETR(nn.Module):
                 "angle_continuous": angle_continuous,
                 "objectness_scores": objectness_prob,
                 "sem_cls_prob": semcls_prob,
-                "cluster_ref": ref_conf_scores,
+                # "cluster_ref": ref_conf_scores,
                 "box_corners": box_corners,
             }
             outputs.append(box_prediction)
@@ -329,6 +329,8 @@ class Model3DETR(nn.Module):
         # intermediate decoder layer outputs are only used during training
         aux_outputs = outputs[:-1]
         outputs = outputs[-1]
+        ref_conf_scores = self.box_processor.compute_reference_confidence(ref_conf_logits)
+        outputs["cluster_ref"] = ref_conf_scores
 
         return {
             "outputs": outputs,  # output from last layer of decoder
