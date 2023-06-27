@@ -160,7 +160,7 @@ class TransformerDecoder(nn.Module):
         len_nun_max = lang_fea.shape[0] // batch_size
 
         output_clone = output.clone()
-        output_input = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
         memory_clone = memory.clone()
         memory_input = memory_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
@@ -172,7 +172,7 @@ class TransformerDecoder(nn.Module):
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
         for language_layer in self.layers[-2:]:
-            output_ref, attn = language_layer(output_input,
+            output_ref, attn = language_layer(output_ref,
                                  memory_input,
                                  lang_fea=lang_fea,
                                  tgt_mask=tgt_mask,
@@ -187,10 +187,9 @@ class TransformerDecoder(nn.Module):
             output = output_ref.clone()
             output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
             output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-            # output = self.feature_down(output)
-            output = output.max(dim=1)[0]
+            output = self.feature_down(output)
+            # output = output.max(dim=1)[0]
             output = output.reshape(tgt.shape[2], batch_size, 256)
-            
 
             if self.return_intermediate:
                 intermediate.append(self.norm(output))
