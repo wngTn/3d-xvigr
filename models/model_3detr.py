@@ -59,7 +59,7 @@ class BoxProcessor(object):
         return cls_prob[..., :-1], objectness_prob
 
     def compute_reference_confidence(self, ref_conf_logits):
-        ref_conf_prob = ref_conf_logits.view(-1, 256)
+        ref_conf_prob = ref_conf_logits.squeeze(1) # .view(-1, 256)
         return ref_conf_prob
 
     def box_parametrization_to_corners(self, box_center_unnorm, box_size_unnorm, box_angle):
@@ -273,7 +273,7 @@ class Model3DETR(nn.Module):
 
         # mlp head outputs are (num_layers x batch) x noutput x nqueries, so transpose last two dims
         cls_logits = self.mlp_heads["sem_cls_head"](box_features).transpose(1, 2)
-        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref).transpose(1, 2)
+        ref_conf_logits = self.mlp_heads["reference_confidence_head"](box_features_ref) # .transpose(1, 2)
         center_offset = (self.mlp_heads["center_head"](box_features).sigmoid().transpose(1, 2) - 0.5)
         size_normalized = (self.mlp_heads["size_head"](box_features).sigmoid().transpose(1, 2))
         angle_logits = self.mlp_heads["angle_cls_head"](box_features).transpose(1, 2)
