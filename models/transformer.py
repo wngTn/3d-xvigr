@@ -544,23 +544,23 @@ class TransformerDecoderLanguageLayer(nn.Module):
                     return_attn_weights: Optional[bool] = False):
         # Self Attention with the target
         # import ipdb; ipdb.set_trace()
-        tgt2 = self.norm1(tgt)
-        q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        tgt = tgt + self.dropout1(tgt2)
+        # tgt2 = self.norm1(tgt)
+        # q = k = self.with_pos_embed(tgt2, query_pos)
+        # tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        # tgt = tgt + self.dropout1(tgt2)
 
-        # Cross Attention with encoder features
-        tgt2 = self.norm2(tgt)
-        tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-                                         key=self.with_pos_embed(memory, pos),
-                                         value=memory,
-                                         attn_mask=memory_mask,
-                                         key_padding_mask=memory_key_padding_mask)
-        tgt = tgt + self.dropout2(tgt2)
+        # # Cross Attention with encoder features
+        # tgt2 = self.norm2(tgt)
+        # tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
+        #                                  key=self.with_pos_embed(memory, pos),
+        #                                  value=memory,
+        #                                  attn_mask=memory_mask,
+        #                                  key_padding_mask=memory_key_padding_mask)
+        # tgt = tgt + self.dropout2(tgt2)
         # (NQUERY, BATCH, DIMENSION)
 
         # Add a layer of self attention
-        tgt = tgt.permute(1, 0, 2)  # (BATCH, NQUERY, DIMENSION)
+        tgt = tgt.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
         tgt = self.self_attn2(tgt, tgt, tgt, attention_weights=None, way='mul')
 
@@ -576,12 +576,12 @@ class TransformerDecoderLanguageLayer(nn.Module):
         tgt = tgt.permute(1, 0, 2).contiguous()
         # (NQUERY, BATCH, DIMENSION)
 
-        tgt2 = self.norm3(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        tgt = tgt + self.dropout3(tgt2)
+        # tgt2 = self.norm3(tgt)
+        # tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        # tgt = tgt + self.dropout3(tgt2)
 
         if return_attn_weights:
-            return tgt, attn
+            return tgt, None# , attn
         return tgt, None
 
     def forward(self,
