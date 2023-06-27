@@ -347,7 +347,7 @@ class Model3DETR(nn.Module):
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
 
-        box_features, box_features_ref = self.decoder(tgt, enc_features, query_pos=query_embed, pos=enc_pos)[0]
+        box_features, box_features_ref = self.decoder(tgt, enc_features, lang_fea=data_dict["lang_fea"], lang_mask=data_dict["attention_mask"],query_pos=query_embed, pos=enc_pos)[0]
 
         # import ipdb; ipdb.set_trace()
         data_dict["box_features"] = box_features

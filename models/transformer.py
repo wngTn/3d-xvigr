@@ -176,6 +176,7 @@ class TransformerDecoder(nn.Module):
                                  memory_input,
                                  tgt_mask=tgt_mask,
                                  memory_mask=memory_mask,
+                                 lang_mask=lang_mask,
                                  tgt_key_padding_mask=tgt_key_padding_mask,
                                  memory_key_padding_mask=memory_key_padding_mask,
                                  pos=pos_input,
