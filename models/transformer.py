@@ -187,7 +187,8 @@ class TransformerDecoder(nn.Module):
             output = output_ref.clone()
             output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
             output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-            output = self.feature_down(output)
+            # output = self.feature_down(output)
+            output = output.max(dim=1)[0]
             output = output.reshape(tgt.shape[2], batch_size, 256)
             
 
@@ -513,14 +514,10 @@ class TransformerDecoderLanguageLayer(nn.Module):
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
         self.norm3 = NORM_DICT[norm_fn_name](d_model)
-        self.norm4 = NORM_DICT[norm_fn_name](d_model)
-        self.norm5 = NORM_DICT[norm_fn_name](d_model)
 
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
         self.dropout3 = nn.Dropout(dropout, inplace=False)
-        self.dropout4 = nn.Dropout(dropout, inplace=False)
-        self.dropout5 = nn.Dropout(dropout, inplace=False)
 
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
@@ -576,12 +573,12 @@ class TransformerDecoderLanguageLayer(nn.Module):
             lang_mask,
         )
 
-        tgt = tgt.permute(1, 0, 2)
+        tgt = tgt.permute(1, 0, 2).contiguous()
         # (NQUERY, BATCH, DIMENSION)
 
-        # tgt2 = self.norm5(tgt)
-        # tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        # tgt = tgt + self.dropout5(tgt2)
+        tgt2 = self.norm3(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        tgt = tgt + self.dropout3(tgt2)
 
         if return_attn_weights:
             return tgt, attn
