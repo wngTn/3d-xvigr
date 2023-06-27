@@ -505,25 +505,25 @@ class TransformerDecoderLanguageLayer(nn.Module):
         super().__init__()
         if dropout_attn is None:
             dropout_attn = dropout
-        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
-        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        # self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        # self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
-        self.norm1 = NORM_DICT[norm_fn_name](d_model)
-        self.norm2 = NORM_DICT[norm_fn_name](d_model)
-        self.norm3 = NORM_DICT[norm_fn_name](d_model)
+        # self.norm1 = NORM_DICT[norm_fn_name](d_model)
+        # self.norm2 = NORM_DICT[norm_fn_name](d_model)
+        # self.norm3 = NORM_DICT[norm_fn_name](d_model)
 
-        self.dropout1 = nn.Dropout(dropout, inplace=False)
-        self.dropout2 = nn.Dropout(dropout, inplace=False)
-        self.dropout3 = nn.Dropout(dropout, inplace=False)
+        # self.dropout1 = nn.Dropout(dropout, inplace=False)
+        # self.dropout2 = nn.Dropout(dropout, inplace=False)
+        # self.dropout3 = nn.Dropout(dropout, inplace=False)
 
-        # Implementation of Feedforward model
-        self.linear1 = nn.Linear(d_model, dim_feedforward)
-        self.dropout = nn.Dropout(dropout, inplace=False)
-        self.linear2 = nn.Linear(dim_feedforward, d_model)
+        # # Implementation of Feedforward model
+        # self.linear1 = nn.Linear(d_model, dim_feedforward)
+        # self.dropout = nn.Dropout(dropout, inplace=False)
+        # self.linear2 = nn.Linear(dim_feedforward, d_model)
 
-        self.activation = ACTIVATION_DICT[activation]()
+        # self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
