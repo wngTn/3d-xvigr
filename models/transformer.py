@@ -174,6 +174,7 @@ class TransformerDecoder(nn.Module):
         for language_layer in self.layers[-2:]:
             output_ref, attn = language_layer(output_input,
                                  memory_input,
+                                 lang_fea=lang_fea,
                                  tgt_mask=tgt_mask,
                                  memory_mask=memory_mask,
                                  lang_mask=lang_mask,
