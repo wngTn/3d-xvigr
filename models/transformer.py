@@ -201,7 +201,7 @@ class TransformerDecoder(nn.Module):
         # # import ipdb; ipdb.set_trace()
         output_input = output_input.permute(1, 0, 2)
 
-        for language_layer in self.layers[-1:]:
+        for language_layer in self.layers[-2:]:
             output_input, attn = language_layer(output_input,
                                  memory_input,
                                  lang_fea=lang_fea,
