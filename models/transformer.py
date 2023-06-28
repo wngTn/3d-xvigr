@@ -593,7 +593,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         #                                  key_padding_mask=memory_key_padding_mask)
         # tgt = tgt + self.dropout2(tgt2)
         # (NQUERY, BATCH, DIMENSION)
-
+        import ipdb; ipdb.set_trace()
         # Add a layer of self attention
         tgt = tgt.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
