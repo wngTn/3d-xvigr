@@ -107,6 +107,13 @@ class TransformerDecoder(nn.Module):
             nn.PReLU(1),
             nn.Conv1d(1, 1, 1),
         )
+        hidden_size = 256
+        head = 4
+        depth = 2
+        self.self_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
+        self.cross_attn = nn.ModuleList(
+            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth)) 
 
     def _reset_parameters(self, weight_init_name):
         func = WEIGHT_INIT_DICT[weight_init_name]
@@ -159,6 +166,8 @@ class TransformerDecoder(nn.Module):
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
 
+        output = self.self_attn[0](output, output, output)
+
         output_clone = output.clone()
         output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
@@ -171,30 +180,53 @@ class TransformerDecoder(nn.Module):
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-        for language_layer in self.layers[-2:]:
-            output_ref, attn = language_layer(output_ref,
-                                 memory_input,
-                                 lang_fea=lang_fea,
-                                 tgt_mask=tgt_mask,
-                                 memory_mask=memory_mask,
-                                 lang_mask=lang_mask,
-                                 tgt_key_padding_mask=tgt_key_padding_mask,
-                                 memory_key_padding_mask=memory_key_padding_mask,
-                                 pos=pos_input,
-                                 query_pos=query_pos_input,
-                                 return_attn_weights=return_attn_weights)
-            
-            output = output_ref.clone()
-            output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
-            output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-            output = self.feature_down(output)
-            # output = output.max(dim=1)[0]
-            output = output.reshape(tgt.shape[2], batch_size, 256)
+        output_ref = self.cross_attn[0](output_ref, lang_fea, lang_fea, lang_mask)
 
-            if self.return_intermediate:
-                intermediate.append(self.norm(output))
-            if return_attn_weights:
-                attns.append(attn)
+        for _ in range(1):
+            output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
+            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
+            output_ref = self.cross_attn[_+1](output_ref, lang_fea, lang_fea, lang_mask)
+
+        # print("feature1", feature1.shape)
+        # match
+        # import ipdb; ipdb.set_trace()
+        output_ref = output_ref.permute(0, 2, 1).contiguous()
+
+        # for language_layer in self.layers[-2:]:
+        #     output_ref, attn = language_layer(output_ref,
+        #                          memory_input,
+        #                          lang_fea=lang_fea,
+        #                          tgt_mask=tgt_mask,
+        #                          memory_mask=memory_mask,
+        #                          lang_mask=lang_mask,
+        #                          tgt_key_padding_mask=tgt_key_padding_mask,
+        #                          memory_key_padding_mask=memory_key_padding_mask,
+        #                          pos=pos_input,
+        #                          query_pos=query_pos_input,
+        #                          return_attn_weights=return_attn_weights)
+            
+        #     output = output_ref.clone()
+        #     output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
+        #     output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
+        #     output = self.feature_down(output)
+        #     # output = output.max(dim=1)[0]
+        #     output = output.reshape(tgt.shape[2], batch_size, 256)
+
+        #     if self.return_intermediate:
+        #         intermediate.append(self.norm(output))
+        #     if return_attn_weights:
+        #         attns.append(attn)
+        output = output_ref.clone()
+        output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
+        output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
+        output = self.feature_down(output)
+        # output = output.max(dim=1)[0]
+        output = output.reshape(tgt.shape[2], batch_size, 256)
+
+        if self.return_intermediate:
+            intermediate.append(self.norm(output))
+        if return_attn_weights:
+            attns.append(attn)
 
         if self.norm is not None:
             output = self.norm(output)
