@@ -89,6 +89,7 @@ class TransformerDecoder(nn.Module):
         self.norm = None
         if norm_fn_name is not None:
             self.norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
+            self.norm_2 = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
         self.return_intermediate = return_intermediate
         self._reset_parameters(weight_init_name)
 
@@ -109,14 +110,12 @@ class TransformerDecoder(nn.Module):
         )
         hidden_size = 256
         head = 4
-        depth = 2
-        self.s_attn = nn.MultiheadAttention(256, 4, dropout=0.1)
-        self.s_norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
-        self.s_dropout = nn.Dropout(0.1)
-        self.self_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
-        self.cross_attn = nn.ModuleList(
-            MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth)) 
+        self.norm1 = NORM_DICT[norm_fn_name](256)
+        self.norm2 = NORM_DICT[norm_fn_name](256)
+        self.dropout1 = nn.Dropout(0.1)
+        self.dropout2 = nn.Dropout(0.1)
+        self.self_attn = MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head)
+        self.cross_attn = MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head)
 
     def _reset_parameters(self, weight_init_name):
         func = WEIGHT_INIT_DICT[weight_init_name]
@@ -165,22 +164,19 @@ class TransformerDecoder(nn.Module):
                 attns.append(attn)
 
         # import ipdb; ipdb.set_trace()
+        # (L, B, C) -> (B, L, C)
+        output = output.permute(1, 0, 2)
+        tgt2 = self.norm1(output)
+        tgt2 = self.self_attn(tgt2, tgt2, tgt2)
+        output = tgt + self.dropout1(tgt2)
 
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
         # import ipdb; ipdb.set_trace()
 
-        q = k = tgt + query_pos if query_pos is not None else tgt        
-        tgt = self.s_attn(q, k, value=tgt, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        output = output + self.s_dropout(tgt)
-        output = self.s_norm(output + q)
-
-        # 
-        output = output.permute(1, 0, 2)
-        # output = self.self_attn[0](output, output, output)
         output_clone = output.clone()
         # output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
-        output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, 256, -1)
+        output_input = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, 256, -1)
 
         memory_clone = memory.clone()
         memory_input = memory_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
@@ -191,8 +187,9 @@ class TransformerDecoder(nn.Module):
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
-
-        output_ref = self.cross_attn[0](output_ref, lang_fea, lang_fea, lang_mask)
+        tgt2 = self.norm2(output_input)
+        output_ref = self.cross_attn(tgt2, lang_fea, lang_fea, lang_mask)
+        output_ref = output_input + self.dropout2(output_ref)
 
         # for _ in range(1):
         #     output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
@@ -217,28 +214,17 @@ class TransformerDecoder(nn.Module):
                                  query_pos=query_pos_input,
                                  return_attn_weights=return_attn_weights)
             
-        #     output = output_ref.clone()
-        #     output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
-        #     output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-        #     output = self.feature_down(output)
-        #     # output = output.max(dim=1)[0]
-        #     output = output.reshape(tgt.shape[2], batch_size, 256)
+            output = output_ref.clone()
+            output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
+            output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
+            output = self.feature_down(output)
+            # output = output.max(dim=1)[0]
+            output = output.reshape(tgt.shape[2], batch_size, 256)
 
-        #     if self.return_intermediate:
-        #         intermediate.append(self.norm(output))
-        #     if return_attn_weights:
-        #         attns.append(attn)
-        output = output_ref.clone()
-        output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
-        output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-        output = self.feature_down(output)
-        # output = output.max(dim=1)[0]
-        output = output.reshape(tgt.shape[2], batch_size, 256)
-
-        if self.return_intermediate:
-            intermediate.append(self.norm(output))
-        if return_attn_weights:
-            attns.append(attn)
+            if self.return_intermediate:
+                intermediate.append(self.norm_2(output))
+            if return_attn_weights:
+                attns.append(attn)
 
         if self.norm is not None:
             output = self.norm(output)
@@ -550,16 +536,16 @@ class TransformerDecoderLanguageLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.self_attn2 = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        self.self_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
         # self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
-        # self.norm1 = NORM_DICT[norm_fn_name](d_model)
-        # self.norm2 = NORM_DICT[norm_fn_name](d_model)
+        self.norm1 = NORM_DICT[norm_fn_name](d_model)
+        self.norm2 = NORM_DICT[norm_fn_name](d_model)
         # self.norm3 = NORM_DICT[norm_fn_name](d_model)
 
-        # self.dropout1 = nn.Dropout(dropout, inplace=False)
-        # self.dropout2 = nn.Dropout(dropout, inplace=False)
+        self.dropout1 = nn.Dropout(dropout, inplace=False)
+        self.dropout2 = nn.Dropout(dropout, inplace=False)
         # self.dropout3 = nn.Dropout(dropout, inplace=False)
 
         # # Implementation of Feedforward model
@@ -604,16 +590,20 @@ class TransformerDecoderLanguageLayer(nn.Module):
         # Add a layer of self attention
         tgt = tgt.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
-        tgt = self.self_attn2(tgt, tgt, tgt, attention_weights=None, way='mul')
+        tgt2 = self.norm1(tgt)
+        q = k = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.self_attn(q, k, tgt2, attention_weights=None, way='mul')
+        tgt = tgt + self.dropout1(tgt2)
 
 
-        # tgt2 = self.norm4(tgt)
-        tgt = self.cross_attn(
-            tgt,
+        tgt2 = self.norm2(tgt)
+        tgt2 = self.cross_attn(
+            tgt2,
             lang_fea,
             lang_fea,
             lang_mask,
         )
+        tgt = tgt + self.dropout2(tgt2)
 
         tgt = tgt.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
@@ -623,7 +613,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         # tgt = tgt + self.dropout3(tgt2)
 
         if return_attn_weights:
-            return tgt, None# , attn
+            return tgt, None # , attn
         return tgt, None
 
     def forward(self,

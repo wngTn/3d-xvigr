@@ -143,8 +143,8 @@ class MultiHeadAttention(nn.Module):
                 self.attention = attention_module(d_model=d_model, d_k=d_k, d_v=d_v, h=h, m = 20)
         else:
             self.attention = ScaledDotProductAttention(d_model=d_model, d_k=d_k, d_v=d_v, h=h)
-        self.dropout = nn.Dropout(p=dropout)
-        self.layer_norm = nn.LayerNorm(d_model)
+        # self.dropout = nn.Dropout(p=dropout)
+        # self.layer_norm = nn.LayerNorm(d_model)
 
         self.can_be_stateful = can_be_stateful
         if self.can_be_stateful:
@@ -167,8 +167,8 @@ class MultiHeadAttention(nn.Module):
             out = queries + self.dropout(torch.relu(out))
         else:
             out = self.attention(queries, keys, values, attention_mask, attention_weights, way)
-            out = self.dropout(out)
-            out = self.layer_norm(queries + out)
+            # out = self.dropout(out)
+            # out = self.layer_norm(queries + out)
         return out
 
     def forward_faster(self, queries, keys, values, attention_pos, attention_weights, way):
