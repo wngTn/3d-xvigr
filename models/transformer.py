@@ -186,28 +186,28 @@ class TransformerDecoder(nn.Module):
 
         output_ref = self.cross_attn[0](output_ref, lang_fea, lang_fea, lang_mask)
 
-        for _ in range(1):
-            output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
-            # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
-            output_ref = self.cross_attn[_+1](output_ref, lang_fea, lang_fea, lang_mask)
+        # for _ in range(1):
+        #     output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
+        #     # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
+        #     output_ref = self.cross_attn[_+1](output_ref, lang_fea, lang_fea, lang_mask)
 
-        # print("feature1", feature1.shape)
-        # match
-        # import ipdb; ipdb.set_trace()
-        output_ref = output_ref.permute(1, 0, 2).contiguous()
+        # # print("feature1", feature1.shape)
+        # # match
+        # # import ipdb; ipdb.set_trace()
+        # output_ref = output_ref.permute(1, 0, 2).contiguous()
 
-        # for language_layer in self.layers[-2:]:
-        #     output_ref, attn = language_layer(output_ref,
-        #                          memory_input,
-        #                          lang_fea=lang_fea,
-        #                          tgt_mask=tgt_mask,
-        #                          memory_mask=memory_mask,
-        #                          lang_mask=lang_mask,
-        #                          tgt_key_padding_mask=tgt_key_padding_mask,
-        #                          memory_key_padding_mask=memory_key_padding_mask,
-        #                          pos=pos_input,
-        #                          query_pos=query_pos_input,
-        #                          return_attn_weights=return_attn_weights)
+        for language_layer in self.layers[-1:]:
+            output_ref, attn = language_layer(output_ref,
+                                 memory_input,
+                                 lang_fea=lang_fea,
+                                 tgt_mask=tgt_mask,
+                                 memory_mask=memory_mask,
+                                 lang_mask=lang_mask,
+                                 tgt_key_padding_mask=tgt_key_padding_mask,
+                                 memory_key_padding_mask=memory_key_padding_mask,
+                                 pos=pos_input,
+                                 query_pos=query_pos_input,
+                                 return_attn_weights=return_attn_weights)
             
         #     output = output_ref.clone()
         #     output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
