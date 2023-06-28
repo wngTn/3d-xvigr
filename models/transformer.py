@@ -168,7 +168,7 @@ class TransformerDecoder(nn.Module):
         output = output.permute(1, 0, 2)
         tgt2 = self.norm1(output)
         tgt2 = self.self_attn(tgt2, tgt2, tgt2)
-        output = tgt + self.dropout1(tgt2)
+        output = output + self.dropout1(tgt2)
 
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
@@ -188,8 +188,8 @@ class TransformerDecoder(nn.Module):
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
         tgt2 = self.norm2(output_input)
-        output_ref = self.cross_attn(tgt2, lang_fea, lang_fea, lang_mask)
-        output_ref = output_input + self.dropout2(output_ref)
+        tgt2 = self.cross_attn(tgt2, lang_fea, lang_fea, lang_mask)
+        output_input = output_input + self.dropout2(tgt2)
 
         # for _ in range(1):
         #     output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
@@ -199,10 +199,10 @@ class TransformerDecoder(nn.Module):
         # # print("feature1", feature1.shape)
         # # match
         # # import ipdb; ipdb.set_trace()
-        output_ref = output_ref.permute(1, 0, 2)
+        output_input = output_input.permute(1, 0, 2)
 
         for language_layer in self.layers[-1:]:
-            output_ref, attn = language_layer(output_ref,
+            output_input, attn = language_layer(output_input,
                                  memory_input,
                                  lang_fea=lang_fea,
                                  tgt_mask=tgt_mask,
@@ -214,7 +214,7 @@ class TransformerDecoder(nn.Module):
                                  query_pos=query_pos_input,
                                  return_attn_weights=return_attn_weights)
             
-            output = output_ref.clone()
+            output = output_input.clone()
             output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
             output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
             output = self.feature_down(output)
@@ -236,9 +236,9 @@ class TransformerDecoder(nn.Module):
             attns = torch.stack(attns)
 
         if self.return_intermediate:
-            return torch.stack(intermediate), output_ref, attns
+            return torch.stack(intermediate), output_input, attns
 
-        return output, output_ref, attns
+        return output, output_input, attns
 
 
 class MaskedTransformerEncoder(TransformerEncoder):
