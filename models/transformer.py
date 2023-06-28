@@ -171,7 +171,8 @@ class TransformerDecoder(nn.Module):
         output = self.self_attn[0](output, output, output)
 
         output_clone = output.clone()
-        output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        # output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+        output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, 256, -1)
 
         memory_clone = memory.clone()
         memory_input = memory_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
@@ -181,6 +182,7 @@ class TransformerDecoder(nn.Module):
 
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
+
 
         output_ref = self.cross_attn[0](output_ref, lang_fea, lang_fea, lang_mask)
 
