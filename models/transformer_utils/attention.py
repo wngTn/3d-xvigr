@@ -47,7 +47,6 @@ class ScaledDotProductAttention(nn.Module):
         :param attention_weights: Multiplicative weights for attention values (b_s, h, nq, nk).
         :return:
         '''
-        import ipdb; ipdb.set_trace()
         b_s, nq = queries.shape[:2]
         nk = keys.shape[1]
         #print(queries.shape, keys.shape, values.shape)
@@ -167,9 +166,9 @@ class MultiHeadAttention(nn.Module):
             out = self.attention(q_norm, k_norm, v_norm, attention_mask, attention_weights, way)
             out = queries + self.dropout(torch.relu(out))
         else:
+            out = self.layer_norm(queries)
             out = self.attention(queries, keys, values, attention_mask, attention_weights, way)
             out = self.dropout(out)
-            out = self.layer_norm(queries + out)
         return out
 
     def forward_faster(self, queries, keys, values, attention_pos, attention_weights, way):

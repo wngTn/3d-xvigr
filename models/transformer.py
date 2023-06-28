@@ -172,8 +172,9 @@ class TransformerDecoder(nn.Module):
         output = output.permute(1, 0, 2)
 
         tgt2 = self.s_norm(output)
-        q = k = self.with_pos_embed(tgt2, query_pos)
+        q = k = tgt + query_pos if query_pos is not None else tgt        
         tgt2 = self.s_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+
         output = output + self.s_dropout(tgt2)
 
         # output = self.self_attn[0](output, output, output)
