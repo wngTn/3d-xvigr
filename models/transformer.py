@@ -536,22 +536,24 @@ class TransformerDecoderLanguageLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.self_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
-        # self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
+        self.self_attn_lan = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
+        self.norm_lan1 = NORM_DICT[norm_fn_name](d_model)
+        self.norm_lan2 = NORM_DICT[norm_fn_name](d_model)
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
-        # self.norm3 = NORM_DICT[norm_fn_name](d_model)
 
+        self.dropout_lan1 = nn.Dropout(dropout, inplace=False)
+        self.dropout_lan2 = nn.Dropout(dropout, inplace=False)
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
-        # self.dropout3 = nn.Dropout(dropout, inplace=False)
 
         # # Implementation of Feedforward model
-        # self.linear1 = nn.Linear(d_model, dim_feedforward)
-        # self.dropout = nn.Dropout(dropout, inplace=False)
-        # self.linear2 = nn.Linear(dim_feedforward, d_model)
+        self.linear1 = nn.Linear(d_model, dim_feedforward)
+        self.dropout = nn.Dropout(dropout, inplace=False)
+        self.linear2 = nn.Linear(dim_feedforward, d_model)
 
         # self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
@@ -591,28 +593,36 @@ class TransformerDecoderLanguageLayer(nn.Module):
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
-        tgt2 = self.norm1(tgt)
+        tgt2 = self.norm_lan1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn(q, k, tgt2, attention_weights=None, way='mul')
-        tgt = tgt + self.dropout1(tgt2)
+        tgt2 = self.self_attn_lan(q, k, tgt2, attention_weights=None, way='mul')
+        tgt = tgt + self.dropout_lan1(tgt2)
 
 
-        tgt2 = self.norm2(tgt)
+        tgt2 = self.norm_lan2(tgt)
         tgt2 = self.cross_attn(
             tgt2,
             lang_fea,
             lang_fea,
             lang_mask,
         )
-        tgt = tgt + self.dropout2(tgt2)
+        tgt = tgt + self.dropout_lan2(tgt2)
 
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
 
-        # tgt2 = self.norm3(tgt)
-        # tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        # tgt = tgt + self.dropout3(tgt2)
+        tgt2 = self.norm1(tgt)
+        tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
+                                         key=self.with_pos_embed(memory, pos),
+                                         value=memory,
+                                         attn_mask=memory_mask,
+                                         key_padding_mask=memory_key_padding_mask)
+        tgt = tgt + self.dropout1(tgt2)
+
+        tgt2 = self.norm2(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        tgt = tgt + self.dropout2(tgt2)
 
         if return_attn_weights:
             return tgt, None # , attn
