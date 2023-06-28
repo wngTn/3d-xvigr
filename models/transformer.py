@@ -588,7 +588,8 @@ class TransformerDecoderLanguageLayer(nn.Module):
         # tgt = tgt + self.dropout2(tgt2)
         # (NQUERY, BATCH, DIMENSION)
         # Add a layer of self attention
-        tgt = tgt.permute(1, 0, 2) 
+        tgt = tgt.permute(1, 0, 2)
+        query_pos = query_pos.permute(1, 0, 2) 
         # (BATCH, NQUERY, DIMENSION)
         tgt2 = self.norm1(tgt)
         q = k = self.with_pos_embed(tgt2, query_pos)
@@ -606,6 +607,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         tgt = tgt + self.dropout2(tgt2)
 
         tgt = tgt.permute(1, 0, 2)
+        query_pos = query_pos.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
 
         # tgt2 = self.norm3(tgt)
