@@ -165,7 +165,7 @@ class TransformerDecoder(nn.Module):
 
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         output = output.permute(1, 0, 2)
 
         output = self.self_attn[0](output, output, output)
@@ -194,7 +194,7 @@ class TransformerDecoder(nn.Module):
         # print("feature1", feature1.shape)
         # match
         # import ipdb; ipdb.set_trace()
-        output_ref = output_ref.permute(0, 2, 1).contiguous()
+        output_ref = output_ref.permute(1, 0, 2).contiguous()
 
         # for language_layer in self.layers[-2:]:
         #     output_ref, attn = language_layer(output_ref,
