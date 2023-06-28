@@ -555,7 +555,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         self.dropout = nn.Dropout(dropout, inplace=False)
         self.linear2 = nn.Linear(dim_feedforward, d_model)
 
-        # self.activation = ACTIVATION_DICT[activation]()
+        self.activation = ACTIVATION_DICT[activation]()
         self.normalize_before = normalize_before
 
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
