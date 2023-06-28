@@ -166,6 +166,8 @@ class TransformerDecoder(nn.Module):
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
 
+        output = output.permute(1, 0, 2)
+
         output = self.self_attn[0](output, output, output)
 
         output_clone = output.clone()
