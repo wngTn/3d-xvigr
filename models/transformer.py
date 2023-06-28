@@ -110,6 +110,9 @@ class TransformerDecoder(nn.Module):
         hidden_size = 256
         head = 4
         depth = 2
+        self.s_attn = nn.MultiheadAttention(256, 4, dropout=0.1)
+        self.s_norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
+        self.s_dropout = nn.Dropout(0.1)
         self.self_attn = nn.ModuleList(
             MultiHeadAttention(d_model=hidden_size, d_k=hidden_size // head, d_v=hidden_size // head, h=head) for i in range(depth))
         self.cross_attn = nn.ModuleList(
@@ -168,7 +171,12 @@ class TransformerDecoder(nn.Module):
         # import ipdb; ipdb.set_trace()
         output = output.permute(1, 0, 2)
 
-        output = self.self_attn[0](output, output, output)
+        tgt2 = self.s_norm(output)
+        q = k = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.s_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        output = output + self.s_dropout(tgt2)
+
+        # output = self.self_attn[0](output, output, output)
 
         output_clone = output.clone()
         # output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
