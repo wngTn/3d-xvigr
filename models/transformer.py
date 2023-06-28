@@ -169,7 +169,6 @@ class TransformerDecoder(nn.Module):
         batch_size = tgt.shape[1]
         len_nun_max = lang_fea.shape[0] // batch_size
         # import ipdb; ipdb.set_trace()
-        output = output.permute(1, 0, 2)
 
         tgt2 = self.s_norm(output)
         q = k = tgt + query_pos if query_pos is not None else tgt        
@@ -178,7 +177,7 @@ class TransformerDecoder(nn.Module):
         output = output + self.s_dropout(tgt2)
 
         # output = self.self_attn[0](output, output, output)
-
+        output = output.permute(1, 0, 2)
         output_clone = output.clone()
         # output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
         output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, 256, -1)
