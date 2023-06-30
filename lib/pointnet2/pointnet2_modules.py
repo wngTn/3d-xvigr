@@ -283,6 +283,7 @@ class PointnetSAModuleVotes(nn.Module):
                 
         else:
             assert(inds.shape[1] == self.npoint)
+        features = None
         new_xyz = pointnet2_utils.gather_operation(
             xyz_flipped, inds
         ).transpose(1, 2).contiguous() if self.npoint is not None else None

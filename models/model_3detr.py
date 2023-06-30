@@ -325,7 +325,7 @@ class Model3DETR(nn.Module):
     def forward(self, data_dict, encoder_only=False):
         point_clouds = data_dict["point_clouds"]
 
-        enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds[:, :, :6])
+        enc_xyz, enc_features, enc_inds = self.run_encoder(point_clouds[..., :6])
         enc_features = self.encoder_to_decoder_projection(enc_features.permute(1, 2, 0)).permute(2, 0, 1)
         # encoder features: npoints x batch x channel
         # encoder xyz: npoints x batch x 3
