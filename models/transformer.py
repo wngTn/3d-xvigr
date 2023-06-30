@@ -175,7 +175,6 @@ class TransformerDecoder(nn.Module):
         # import ipdb; ipdb.set_trace()
 
         output_clone = output.clone()
-        # output_ref = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
         output_input = output_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(batch_size*len_nun_max, 256, -1)
 
         memory_clone = memory.clone()
@@ -191,13 +190,6 @@ class TransformerDecoder(nn.Module):
         tgt2 = self.cross_attn(tgt2, lang_fea, lang_fea, lang_mask)
         output_input = output_input + self.dropout2(tgt2)
 
-        # for _ in range(1):
-        #     output_ref = self.self_attn[_+1](output_ref, output_ref, output_ref)
-        #     # feature1.shape = (256, 256, 128), lang_fea.shape = (256, 45, 128), data_dict["attention_mask"].shape = (256, 1, 1, 45)
-        #     output_ref = self.cross_attn[_+1](output_ref, lang_fea, lang_fea, lang_mask)
-
-        # # print("feature1", feature1.shape)
-        # # match
         # # import ipdb; ipdb.set_trace()
         output_input = output_input.permute(1, 0, 2)
 
@@ -215,10 +207,9 @@ class TransformerDecoder(nn.Module):
                                  return_attn_weights=return_attn_weights)
             
             output = output_input.clone()
-            output = output.reshape(tgt.shape[2], batch_size, len_nun_max, 256)
             output = output.reshape(tgt.shape[2] * batch_size, len_nun_max, 256)
-            output = self.feature_down(output)
-            # output = output.max(dim=1)[0]
+            # output = self.feature_down(output)
+            output = output.max(dim=1)[0]
             output = output.reshape(tgt.shape[2], batch_size, 256)
 
             if self.return_intermediate:
@@ -536,19 +527,19 @@ class TransformerDecoderLanguageLayer(nn.Module):
         if dropout_attn is None:
             dropout_attn = dropout
         # self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.self_attn_lan = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
+        self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
 
-        self.norm_lan1 = NORM_DICT[norm_fn_name](d_model)
-        self.norm_lan2 = NORM_DICT[norm_fn_name](d_model)
+        self.norm1_lan = NORM_DICT[norm_fn_name](d_model)
         self.norm1 = NORM_DICT[norm_fn_name](d_model)
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
+        self.norm3 = NORM_DICT[norm_fn_name](d_model)
 
-        self.dropout_lan1 = nn.Dropout(dropout, inplace=False)
-        self.dropout_lan2 = nn.Dropout(dropout, inplace=False)
+        self.dropou1_lan = nn.Dropout(dropout, inplace=False)
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
+        self.dropout3 = nn.Dropout(dropout, inplace=False)
 
         # # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
@@ -573,56 +564,37 @@ class TransformerDecoderLanguageLayer(nn.Module):
                     pos: Optional[Tensor] = None,
                     query_pos: Optional[Tensor] = None,
                     return_attn_weights: Optional[bool] = False):
-        # Self Attention with the target
-        # import ipdb; ipdb.set_trace()
-        # tgt2 = self.norm1(tgt)
-        # q = k = self.with_pos_embed(tgt2, query_pos)
-        # tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
-        # tgt = tgt + self.dropout1(tgt2)
+        # (BATCH, NQUERY, DIMENSION)
+        tgt2 = self.norm1(tgt)
+        q = k = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask, key_padding_mask=tgt_key_padding_mask)[0]
+        tgt = tgt + self.dropout1(tgt2)
 
-        # # Cross Attention with encoder features
-        # tgt2 = self.norm2(tgt)
-        # tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
-        #                                  key=self.with_pos_embed(memory, pos),
-        #                                  value=memory,
-        #                                  attn_mask=memory_mask,
-        #                                  key_padding_mask=memory_key_padding_mask)
-        # tgt = tgt + self.dropout2(tgt2)
-        # (NQUERY, BATCH, DIMENSION)
-        # Add a layer of self attention
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2) 
-        # (BATCH, NQUERY, DIMENSION)
-        tgt2 = self.norm_lan1(tgt)
-        q = k = self.with_pos_embed(tgt2, query_pos)
-        tgt2 = self.self_attn_lan(q, k, tgt2, attention_weights=None, way='mul')
-        tgt = tgt + self.dropout_lan1(tgt2)
-
-
-        tgt2 = self.norm_lan2(tgt)
+        tgt2 = self.norm1_lan(tgt)
         tgt2 = self.cross_attn(
             tgt2,
             lang_fea,
             lang_fea,
             lang_mask,
         )
-        tgt = tgt + self.dropout_lan2(tgt2)
-
+        tgt = tgt + self.dropout2_lan(tgt2)
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
 
-        tgt2 = self.norm1(tgt)
+        tgt2 = self.norm2(tgt)
         tgt2, attn = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
                                          key=self.with_pos_embed(memory, pos),
                                          value=memory,
                                          attn_mask=memory_mask,
                                          key_padding_mask=memory_key_padding_mask)
-        tgt = tgt + self.dropout1(tgt2)
-
-        tgt2 = self.norm2(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
         tgt = tgt + self.dropout2(tgt2)
+
+        tgt2 = self.norm3(tgt)
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
+        tgt = tgt + self.dropout3(tgt2)
 
         if return_attn_weights:
             return tgt, None # , attn

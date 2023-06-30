@@ -295,8 +295,6 @@ def get_eval(data_dict,
                 # construct the others mask
                 flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
                 others.append(flag)
-        import ipdb
-        ipdb.set_trace()
         # global iter_id
         # dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], gt_bboxes[-lang_num[i]:],
         #              pred_bboxes[-lang_num[i]:])
