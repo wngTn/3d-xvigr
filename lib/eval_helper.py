@@ -80,6 +80,8 @@ def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes, gt_cente
             o3d.io.write_line_set(os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"), o3d_pred_box)
             print("Dumped pred box to " + os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"))
     if gt_centers is not None:
+        gt_centers[..., [0, 1, 2]] = gt_centers[..., [0, 2, 1]]  # cam X,Y,Z = depth X,-Z,Y
+        gt_centers[..., 1] *= -1
         for i, gt_center in enumerate(gt_centers):
             o3d_gt_center = o3d.geometry.TriangleMesh.create_sphere(radius=0.1)
             o3d_gt_center.translate(gt_center)
