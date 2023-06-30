@@ -20,6 +20,7 @@ from . import pointnet2_utils
 from . import pytorch_utils as pt_utils
 from typing import List
 
+from mmcv.ops.points_sampler import FFPSSampler, DFPSSampler, FSSampler
 
 class _PointnetSAModuleBase(nn.Module):
 
@@ -176,7 +177,8 @@ class PointnetSAModuleVotes(nn.Module):
             sigma: float = None, # for RBF pooling
             normalize_xyz: bool = False, # noramlize local XYZ with radius
             sample_uniformly: bool = False,
-            ret_unique_cnt: bool = False
+            ret_unique_cnt: bool = False,
+            fps_method = 'CS'
     ):
         super().__init__()
 
@@ -191,6 +193,7 @@ class PointnetSAModuleVotes(nn.Module):
             self.sigma = self.radius/2
         self.normalize_xyz = normalize_xyz
         self.ret_unique_cnt = ret_unique_cnt
+        self.fps_method = fps_method
 
         if npoint is not None:
             self.grouper = pointnet2_utils.QueryAndGroup(radius, nsample,
@@ -204,6 +207,16 @@ class PointnetSAModuleVotes(nn.Module):
             mlp_spec[0] += 3
         self.mlp_module = pt_utils.SharedMLP(mlp_spec, bn=bn)
 
+        if self.fps_method == 'F-FPS':
+            self.fps_sampler = FFPSSampler()
+        elif self.fps_method == 'D-FPS':
+            self.fps_sampler = DFPSSampler()
+        elif self.fps_method == 'CS':
+            self.dfps_sampler = DFPSSampler()
+            self.ffps_sampler = FFPSSampler()
+        elif self.fps_method == 'D-F-FPS':
+            self.dfps_sampler = DFPSSampler()
+            self.ffps_sampler = FFPSSampler()
 
     def forward(self, xyz: torch.Tensor,
                 features: torch.Tensor = None,
@@ -230,7 +243,44 @@ class PointnetSAModuleVotes(nn.Module):
 
         xyz_flipped = xyz.transpose(1, 2).contiguous()
         if inds is None:
-            inds = pointnet2_utils.furthest_point_sample(xyz, self.npoint)
+            if self.fps_method == 'D-F-FPS':
+                dfps_inds = self.dfps_sampler(xyz, features, 4096)
+                dfps_feature = pointnet2_utils.gather_operation(features, dfps_inds)
+                dfps_xyz = pointnet2_utils.gather_operation(xyz_flipped, dfps_inds)
+
+                ffps_inds = self.ffps_sampler(dfps_xyz.transpose(1, 2).contiguous(), dfps_feature, self.npoint)
+                ffps_feature = pointnet2_utils.gather_operation(dfps_feature, ffps_inds)
+                ffps_xyz = pointnet2_utils.gather_operation(dfps_xyz, ffps_inds)
+
+                inds = torch.gather(dfps_inds, 1, ffps_inds.long())
+            # if self.fps_method == 'D-FPS':
+            #     inds = pointnet2_utils.furthest_point_sample(xyz, self.npoint)
+            # elif self.fps_method == 'F-FPS':
+            #     inds = self.ffps_sampler(xyz, features, self.npoint)
+            #     import ipdb; ipdb.set_trace()
+            # else:
+            #     raise UnsupportedOperation
+            elif self.fps_method == 'CS':
+                dfps_inds = self.dfps_sampler(xyz, features, self.npoint)
+                ffps_inds = self.ffps_sampler(xyz, features, self.npoint)
+
+                batch_size = dfps_inds.shape[0]
+                temp_inds = torch.stack([dfps_inds, ffps_inds], 1).permute(0, 2, 1).reshape(batch_size, -1)
+                for batch_id in range(batch_size):
+                    
+                    l1 = temp_inds[batch_id].tolist()
+                    l2 = sorted(set(l1),key=l1.index)[:self.npoint]
+                    l2 = torch.tensor(l2).unsqueeze(dim=0)
+                    if batch_id == 0:
+                        inds = l2
+                    else:
+                        inds = torch.cat([inds, l2], 0)
+                inds = inds.to(dfps_inds.device).int()
+                    
+
+            else:
+                inds = self.fps_sampler(xyz, features, self.npoint)
+                
         else:
             assert(inds.shape[1] == self.npoint)
         new_xyz = pointnet2_utils.gather_operation(

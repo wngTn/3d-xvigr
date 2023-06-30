@@ -366,6 +366,7 @@ def build_preencoder(args):
         npoint=args.preenc_npoints,
         mlp=mlp_dims,
         normalize_xyz=True,
+        fps_method="CS"
     )
     return preencoder
 

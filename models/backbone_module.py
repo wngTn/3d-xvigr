@@ -18,10 +18,11 @@ class Pointnet2Backbone(nn.Module):
             Number of input channels in the feature descriptor for each point.
             e.g. 3 for RGB.
     """
-    def __init__(self, input_feature_dim=0):
+    def __init__(self, input_feature_dim=0, fps_method='CS'):
         super().__init__()
 
         self.input_feature_dim = input_feature_dim
+        self.fps_method = fps_method
 
         # --------- 4 SET ABSTRACTION LAYERS ---------
         self.sa1 = PointnetSAModuleVotes(
@@ -30,7 +31,8 @@ class Pointnet2Backbone(nn.Module):
                 nsample=64,
                 mlp=[input_feature_dim, 64, 64, 128],
                 use_xyz=True,
-                normalize_xyz=True
+                normalize_xyz=True,
+                fps_method='D-FPS'
             )
 
         self.sa2 = PointnetSAModuleVotes(
@@ -39,7 +41,8 @@ class Pointnet2Backbone(nn.Module):
                 nsample=32,
                 mlp=[128, 128, 128, 256],
                 use_xyz=True,
-                normalize_xyz=True
+                normalize_xyz=True,
+                fps_method=self.fps_method
             )
 
         self.sa3 = PointnetSAModuleVotes(
@@ -48,7 +51,8 @@ class Pointnet2Backbone(nn.Module):
                 nsample=16,
                 mlp=[256, 128, 128, 256],
                 use_xyz=True,
-                normalize_xyz=True
+                normalize_xyz=True,
+                fps_method=self.fps_method
             )
 
         self.sa4 = PointnetSAModuleVotes(
@@ -57,7 +61,8 @@ class Pointnet2Backbone(nn.Module):
                 nsample=16,
                 mlp=[256, 128, 128, 256],
                 use_xyz=True,
-                normalize_xyz=True
+                normalize_xyz=True,
+                fps_method=self.fps_method
             )
 
         # --------- 2 FEATURE UPSAMPLING LAYERS --------
@@ -123,7 +128,11 @@ class Pointnet2Backbone(nn.Module):
         data_dict['fp2_features'] = features
         data_dict['fp2_xyz'] = data_dict['sa2_xyz']
         num_seed = data_dict['fp2_xyz'].shape[1]
-        data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
+        # data_dict['fp2_inds'] = data_dict['sa1_inds'][:,0:num_seed] # indices among the entire input point clouds
+        if self.fps_method == 'D-FPS':
+            data_dict['fp2_inds'] = data_dict['sa1_inds'][:, 0:num_seed]  # indices among the entire input point clouds
+        else:
+            data_dict['fp2_inds'] = data_dict['sa1_inds'][torch.arange(batch_size).unsqueeze(1), data_dict['sa2_inds'].long()]
         return data_dict
 
 if __name__=='__main__':
