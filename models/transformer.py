@@ -300,7 +300,6 @@ class MaskedTransformerEncoder(TransformerEncoder):
             if idx == 0 and self.interim_downsampling:
                 # output is npoints x batch x channel. make batch x channel x npoints
                 output = output.permute(1, 2, 0)
-                import ipdb; ipdb.set_trace()
                 xyz, output, xyz_inds = self.interim_downsampling(xyz, output)
                 # swap back
                 output = output.permute(2, 0, 1)
