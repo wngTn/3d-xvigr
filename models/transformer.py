@@ -579,7 +579,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
             lang_fea,
             lang_mask,
         )
-        tgt = tgt + self.dropout2_lan(tgt2)
+        tgt = tgt + self.dropout1_lan(tgt2)
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2)
         # (NQUERY, BATCH, DIMENSION)
