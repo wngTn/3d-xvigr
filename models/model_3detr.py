@@ -396,6 +396,7 @@ def build_encoder(args):
             npoint=args.preenc_npoints // 2,
             mlp=[args.enc_dim, 256, 256, args.enc_dim],
             normalize_xyz=True,
+            fps_method=None
         )
 
         masking_radius = [math.pow(x, 2) for x in [0.4, 0.8, 1.2]]
