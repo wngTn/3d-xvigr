@@ -214,8 +214,7 @@ class Model3DETR(nn.Module):
 
     def run_encoder(self, point_clouds):
         xyz, features = self._break_up_pc(point_clouds)
-        import ipdb; ipdb.set_trace()
-        pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features)
+        pre_enc_xyz, pre_enc_features, pre_enc_inds = self.pre_encoder(xyz, features, reset_features=True)
         # xyz: batch x npoints x 3
         # features: batch x channel x npoints
         # inds: batch x npoints
