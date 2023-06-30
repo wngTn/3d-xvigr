@@ -536,7 +536,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         self.norm2 = NORM_DICT[norm_fn_name](d_model)
         self.norm3 = NORM_DICT[norm_fn_name](d_model)
 
-        self.dropou1_lan = nn.Dropout(dropout, inplace=False)
+        self.dropout1_lan = nn.Dropout(dropout, inplace=False)
         self.dropout1 = nn.Dropout(dropout, inplace=False)
         self.dropout2 = nn.Dropout(dropout, inplace=False)
         self.dropout3 = nn.Dropout(dropout, inplace=False)
