@@ -217,7 +217,6 @@ class PointnetSAModuleVotes(nn.Module):
         elif self.fps_method == 'D-F-FPS':
             self.dfps_sampler = DFPSSampler()
             self.ffps_sampler = FFPSSampler()
-        else:
 
 
     def forward(self, xyz: torch.Tensor,
