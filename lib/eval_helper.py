@@ -45,7 +45,7 @@ def construct_bbox_corners(center, box_size):
     return corners_3d
 
 
-def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
+def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes, gt_centers):
     """
     Dump the results to a temp folder using Open3D for visualization
     """
@@ -79,6 +79,12 @@ def dump_results(iter_id, batch_num, point_cloud, gt_boxes, pred_boxes):
                           [3, 7]]))
             o3d.io.write_line_set(os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"), o3d_pred_box)
             print("Dumped pred box to " + os.path.join(dump_dir, "pred_box_" + str(j) + ".ply"))
+    if gt_centers is not None:
+        for i, gt_center in enumerate(gt_centers):
+            o3d_gt_center = o3d.geometry.TriangleMesh.create_sphere(radius=0.1)
+            o3d_gt_center.translate(gt_center)
+            o3d.io.write_triangle_mesh(os.path.join(dump_dir, "gt_center_" + str(i) + ".ply"), o3d_gt_center)
+            print("Dumped gt center to " + os.path.join(dump_dir, "gt_center_" + str(i) + ".ply"))
 
 
 iter_id = 0
@@ -287,8 +293,8 @@ def get_eval(data_dict,
                 # construct the others mask
                 flag = 1 if data_dict["object_cat_list"][i][j] == 17 else 0
                 others.append(flag)
-        # import ipdb
-        # ipdb.set_trace()
+        import ipdb
+        ipdb.set_trace()
         # global iter_id
         # dump_results(iter_id, i, data_dict["point_clouds"].detach().cpu().numpy()[i], gt_bboxes[-lang_num[i]:],
         #              pred_bboxes[-lang_num[i]:])
