@@ -366,7 +366,7 @@ def build_preencoder(args):
         npoint=args.preenc_npoints,
         mlp=mlp_dims,
         normalize_xyz=True,
-        fps_method=None
+        fps_method="CS"
     )
     return preencoder
 
@@ -395,7 +395,7 @@ def build_encoder(args):
             npoint=args.preenc_npoints // 2,
             mlp=[args.enc_dim, 256, 256, args.enc_dim],
             normalize_xyz=True,
-            fps_method=None
+            fps_method="CS"
         )
 
         masking_radius = [math.pow(x, 2) for x in [0.4, 0.8, 1.2]]
