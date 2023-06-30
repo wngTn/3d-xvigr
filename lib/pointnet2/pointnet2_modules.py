@@ -287,7 +287,6 @@ class PointnetSAModuleVotes(nn.Module):
         new_xyz = pointnet2_utils.gather_operation(
             xyz_flipped, inds
         ).transpose(1, 2).contiguous() if self.npoint is not None else None
-        features = None
         if not self.ret_unique_cnt:
             grouped_features, grouped_xyz = self.grouper(
                 xyz, new_xyz, features
