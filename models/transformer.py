@@ -115,7 +115,7 @@ class TransformerDecoder(nn.Module):
         self.norm2 = NORM_DICT[norm_fn_name](256)
         self.dropout1 = nn.Dropout(dropout_value)
         self.dropout2 = nn.Dropout(dropout_value)
-        self.self_attn = nn.MultiheadAttention(hidden_size, head, dropout=decoder_language.dropout)
+        self.self_attn = nn.MultiheadAttention(hidden_size, head, dropout=dropout_value)
         self.cross_attn = MultiHeadAttention(d_model=hidden_size,
                                              d_k=hidden_size // head,
                                              d_v=hidden_size // head,
