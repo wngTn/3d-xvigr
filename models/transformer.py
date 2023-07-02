@@ -112,8 +112,8 @@ class TransformerDecoder(nn.Module):
         head = 4
         self.norm1 = NORM_DICT[norm_fn_name](256)
         self.norm2 = NORM_DICT[norm_fn_name](256)
-        self.dropout1 = nn.Dropout(decoder_language.dropout)
-        self.dropout2 = nn.Dropout(decoder_language.dropout)
+        self.dropout1 = nn.Dropout(decoder_language.dropout_value)
+        self.dropout2 = nn.Dropout(decoder_language.dropout_value)
         self.self_attn = nn.MultiheadAttention(hidden_size, head, dropout=decoder_language.dropout)
         self.cross_attn = MultiHeadAttention(d_model=hidden_size,
                                              d_k=hidden_size // head,
@@ -537,7 +537,7 @@ class TransformerDecoderLanguageLayer(nn.Module):
         super().__init__()
         if dropout_attn is None:
             dropout_attn = dropout
-        self.dropout = dropout
+        self.dropout_value = dropout
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
         self.cross_attn = MultiHeadAttention(d_model=d_model, d_k=d_model // nhead, d_v=d_model // nhead, h=nhead)
