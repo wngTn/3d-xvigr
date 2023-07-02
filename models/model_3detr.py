@@ -347,7 +347,12 @@ class Model3DETR(nn.Module):
         query_embed = query_embed.permute(2, 0, 1)
         tgt = torch.zeros_like(query_embed)
 
-        box_features, box_features_ref = self.decoder(tgt, enc_features, lang_fea=data_dict["lang_fea"], lang_mask=data_dict["attention_mask"],query_pos=query_embed, pos=enc_pos)[:2]
+        box_features, box_features_ref = self.decoder(tgt,
+                                                      enc_features,
+                                                      lang_fea=data_dict["lang_fea"],
+                                                      lang_mask=data_dict["attention_mask"],
+                                                      query_pos=query_embed,
+                                                      pos=enc_pos)[:2]
 
         # import ipdb; ipdb.set_trace()
         data_dict["box_features"] = box_features
@@ -360,14 +365,12 @@ class Model3DETR(nn.Module):
 
 def build_preencoder(args):
     mlp_dims = [3 * int(args.use_color), 64, 128, args.enc_dim]
-    preencoder = PointnetSAModuleVotes(
-        radius=0.2,
-        nsample=64,
-        npoint=args.preenc_npoints,
-        mlp=mlp_dims,
-        normalize_xyz=True,
-        fps_method=None
-    )
+    preencoder = PointnetSAModuleVotes(radius=0.2,
+                                       nsample=64,
+                                       npoint=args.preenc_npoints,
+                                       mlp=mlp_dims,
+                                       normalize_xyz=True,
+                                       fps_method=None)
     return preencoder
 
 
@@ -389,14 +392,12 @@ def build_encoder(args):
             dropout=args.enc_dropout,
             activation=args.enc_activation,
         )
-        interim_downsampling = PointnetSAModuleVotes(
-            radius=0.4,
-            nsample=32,
-            npoint=args.preenc_npoints // 2,
-            mlp=[args.enc_dim, 256, 256, args.enc_dim],
-            normalize_xyz=True,
-            fps_method="F-FPS"
-        )
+        interim_downsampling = PointnetSAModuleVotes(radius=0.4,
+                                                     nsample=32,
+                                                     npoint=args.preenc_npoints // 2,
+                                                     mlp=[args.enc_dim, 256, 256, args.enc_dim],
+                                                     normalize_xyz=True,
+                                                     fps_method="F-FPS")
 
         masking_radius = [math.pow(x, 2) for x in [0.4, 0.8, 1.2]]
         encoder = MaskedTransformerEncoder(
@@ -426,7 +427,7 @@ def build_decoder(args):
     decoder = TransformerDecoder(decoder_layer,
                                  decoder_language_layer,
                                  num_layers=args.dec_nlayers,
-                                 dropout=args.dec_dropout,
+                                 dropout_value=args.dec_dropout,
                                  return_intermediate=True)
     return decoder
 
