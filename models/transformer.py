@@ -185,7 +185,7 @@ class TransformerDecoder(nn.Module):
 
         output_clone = output.clone()
         output_input = output_clone[:, None, :, :].repeat(1, len_nun_max, 1,
-                                                          1).reshape(-1, batch_size * len_nun_max, 256)
+                                                          1).reshape(batch_size * len_nun_max, -1, 256)
 
         memory_clone = memory.clone()
         memory_input = memory_clone[:, None, :, :].repeat(1, len_nun_max, 1,
