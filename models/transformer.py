@@ -193,7 +193,7 @@ class TransformerDecoder(nn.Module):
 
         query_pos_clone = query_pos.clone()
         query_pos_input = query_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1,
-                                                                1).reshape(batch_size * len_nun_max, -1, 256)
+                                                                1).reshape(-1, batch_size * len_nun_max, 256)
 
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
