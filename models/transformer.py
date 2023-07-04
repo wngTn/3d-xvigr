@@ -193,13 +193,13 @@ class TransformerDecoder(nn.Module):
 
         query_pos_clone = query_pos.clone()
         query_pos_input = query_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1,
-                                                                1).reshape(-1, batch_size * len_nun_max, 256)
+                                                                1).reshape(batch_size * len_nun_max, -1, 256)
 
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
         tgt2 = self.norm2(output_input)
-        q = self.with_pos_embed(tgt2, query_pos)
+        q = self.with_pos_embed(tgt2, query_pos_input)
         tgt2 = self.cross_attn(q, lang_fea, lang_fea, lang_mask)
         output_input = output_input + self.dropout2(tgt2)
 
