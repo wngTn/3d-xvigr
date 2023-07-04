@@ -199,7 +199,8 @@ class TransformerDecoder(nn.Module):
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
 
         tgt2 = self.norm2(output_input)
-        tgt2 = self.cross_attn(tgt2, lang_fea, lang_fea, lang_mask)
+        q = self.with_pos_embed(tgt2, query_pos)
+        tgt2 = self.cross_attn(q, lang_fea, lang_fea, lang_mask)
         output_input = output_input + self.dropout2(tgt2)
 
         # # import ipdb; ipdb.set_trace()
@@ -225,12 +226,13 @@ class TransformerDecoder(nn.Module):
             output = output.reshape(tgt.shape[2], batch_size, 256)
 
             if self.return_intermediate:
-                intermediate.append(self.norm_2(output))
+                intermediate.append(self.norm(output))
             if return_attn_weights:
                 attns.append(attn)
 
         if self.norm is not None:
             output = self.norm(output)
+            output_input = self.norm_2(output_input)
             if self.return_intermediate:
                 intermediate.pop()
                 intermediate.append(output)
@@ -594,8 +596,9 @@ class TransformerDecoderLanguageLayer(nn.Module):
         tgt = tgt.permute(1, 0, 2)
         query_pos = query_pos.permute(1, 0, 2)
         tgt2 = self.norm1_lan(tgt)
+        q = self.with_pos_embed(tgt2, query_pos)
         tgt2 = self.cross_attn(
-            tgt2,
+            q,
             lang_fea,
             lang_fea,
             lang_mask,
