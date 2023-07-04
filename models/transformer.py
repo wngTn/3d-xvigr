@@ -193,7 +193,7 @@ class TransformerDecoder(nn.Module):
 
         query_pos_clone = query_pos.clone()
         query_pos_input = query_pos_clone[:, None, :, :].repeat(1, len_nun_max, 1,
-                                                                1).reshape(-1, batch_size * len_nun_max, 256)
+                                                                1).reshape(batch_size * len_nun_max, -1, 256)
 
         pos_clone = pos.clone()
         pos_input = pos_clone[:, None, :, :].repeat(1, len_nun_max, 1, 1).reshape(-1, batch_size * len_nun_max, 256)
@@ -205,6 +205,7 @@ class TransformerDecoder(nn.Module):
 
         # # import ipdb; ipdb.set_trace()
         output_input = output_input.permute(1, 0, 2)
+        query_pos_input = query_pos_input.permute(1, 0, 2)
 
         for language_layer in self.layers[-1:]:
             output_input, attn = language_layer(output_input,
