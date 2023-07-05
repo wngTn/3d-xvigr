@@ -427,7 +427,7 @@ def build_decoder(args):
     decoder = TransformerDecoder(decoder_layer,
                                  decoder_language_layer,
                                  num_layers=args.dec_nlayers,
-                                 num_lan_layers=args.dec_nlan_layers,
+                                 num_lan_layers=args.dec_lan_nlayers,
                                  dropout_value=args.dec_dropout,
                                  return_intermediate=True)
     return decoder
