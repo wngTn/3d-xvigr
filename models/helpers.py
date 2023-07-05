@@ -114,6 +114,6 @@ class GenericMLP(nn.Module):
 
 def get_clones(module, N, language_module=None, num_lan_layers=1):
     if language_module is not None:
-        return nn.ModuleList([copy.deepcopy(module) for i in range(N)] + [copy.deepcopy(language_module) for i in range(num_lan_layers)])
+        return nn.ModuleList([copy.deepcopy(module) for i in range(N - num_lan_layers)] + [copy.deepcopy(language_module) for i in range(num_lan_layers)])
     else:
         return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
