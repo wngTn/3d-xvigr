@@ -80,18 +80,20 @@ class TransformerDecoder(nn.Module):
                  decoder_layer,
                  decoder_language,
                  num_layers,
+                 num_lan_layers,
                  dropout_value,
                  norm_fn_name="ln",
                  return_intermediate=False,
                  weight_init_name="xavier_uniform"):
         super().__init__()
-        self.layers = get_clones(decoder_layer, num_layers, decoder_language)
+        self.layers = get_clones(decoder_layer, num_layers, decoder_language, num_lan_layers)
         self.num_layers = num_layers
         self.norm = None
         if norm_fn_name is not None:
             self.norm = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
             self.norm_2 = NORM_DICT[norm_fn_name](self.layers[0].linear2.out_features)
         self.return_intermediate = return_intermediate
+        self.num_lan_layers = num_lan_layers
         self._reset_parameters(weight_init_name)
 
         # self.feature_down = nn.Sequential(
@@ -155,7 +157,7 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         attns = []
 
-        for layer in self.layers[:-1]:
+        for layer in self.layers[:-self.num_lan_layers]:
             output, attn = layer(output,
                                  memory,
                                  tgt_mask=tgt_mask,
@@ -207,7 +209,7 @@ class TransformerDecoder(nn.Module):
         output_input = output_input.permute(1, 0, 2)
         query_pos_input = query_pos_input.permute(1, 0, 2)
 
-        for language_layer in self.layers[-1:]:
+        for language_layer in self.layers[-self.num_lan_layers:]:
             output_input, attn = language_layer(output_input,
                                                 memory_input,
                                                 lang_fea=lang_fea,

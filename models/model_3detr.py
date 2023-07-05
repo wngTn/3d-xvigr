@@ -397,7 +397,7 @@ def build_encoder(args):
                                                      npoint=args.preenc_npoints // 2,
                                                      mlp=[args.enc_dim, 256, 256, args.enc_dim],
                                                      normalize_xyz=True,
-                                                     fps_method=None)
+                                                     fps_method=args.sampling_method)
 
         masking_radius = [math.pow(x, 2) for x in [0.4, 0.8, 1.2]]
         encoder = MaskedTransformerEncoder(
@@ -427,6 +427,7 @@ def build_decoder(args):
     decoder = TransformerDecoder(decoder_layer,
                                  decoder_language_layer,
                                  num_layers=args.dec_nlayers,
+                                 num_lan_layers=args.dec_nlan_layers,
                                  dropout_value=args.dec_dropout,
                                  return_intermediate=True)
     return decoder
