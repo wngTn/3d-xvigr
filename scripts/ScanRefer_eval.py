@@ -514,6 +514,8 @@ if __name__ == "__main__":
     parser.add_argument("--dec_ffn_dim", default=256, type=int)
     parser.add_argument("--dec_dropout", default=0.1, type=float)
     parser.add_argument("--dec_nhead", default=4, type=int)
+    parser.add_argument("--sampling_method", default=None, type=str)
+    parser.add_argument("--dec_lan_nlayers", default=1, type=int)
 
     parser.add_argument("--proposal_generator", default="votenet", type=str)
     parser.add_argument("--mlp_dropout", default=0.3, type=float)
