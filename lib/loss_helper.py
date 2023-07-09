@@ -391,7 +391,7 @@ def compute_lang_classification_loss(data_dict):
     return loss
 
 
-def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=False, proposal_generator="votenet", args=None):
+def get_loss(data_dict, config, detection=True, reference=True, use_lang_classifier=False, proposal_generator="votenet", args=None, post_dict=None):
     """ Loss functions
 
     Args:
@@ -485,5 +485,7 @@ def get_loss(data_dict, config, detection=True, reference=True, use_lang_classif
         loss *= 10  # amplify
 
     data_dict['loss'] = loss
+
+    _ = parse_predictions(data_dict, post_dict)
 
     return loss, data_dict

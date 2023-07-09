@@ -28,7 +28,7 @@ from lib.loss_helper import get_loss
 from lib.config import CONF
 
 # data
-SCANNET_ROOT = CONF.PATH.SCANNET # TODO point this to your scannet data
+SCANNET_ROOT = "/home/tonyw/Documents/2nd_Semester/ADL4CV/3DVG-Transformer/data/scannet/scans" # TODO point this to your scannet data
 SCANNET_MESH = os.path.join(SCANNET_ROOT, "{}/{}_vh_clean_2.ply") # scene_id, scene_id 
 SCANNET_META = os.path.join(SCANNET_ROOT, "{}/{}.txt") # scene_id, scene_id 
 SCANREFER_TRAIN = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_train.json")))
@@ -38,9 +38,10 @@ SCANREFER_VAL = json.load(open(os.path.join(CONF.PATH.DATA, "ScanRefer_filtered_
 MEAN_COLOR_RGB = np.array([109.8, 97.2, 83.8])
 DC = ScannetDatasetConfig()
 
-def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
+def get_dataloader(args, scanrefer, scanrefer_new, all_scene_list, split, config):
     dataset = ScannetReferenceDataset(
-        scanrefer=scanrefer, 
+        scanrefer=scanrefer,
+        scanrefer_new=scanrefer_new,
         scanrefer_all_scene=all_scene_list, 
         split=split, 
         num_points=args.num_points, 
@@ -50,11 +51,11 @@ def get_dataloader(args, scanrefer, all_scene_list, split, config, augment):
         use_multiview=args.use_multiview,
         lang_num_max=1
     )
+    print("evaluate on {} samples".format(len(dataset)))
 
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
 
     return dataset, dataloader
-
 def get_model(args):
     # load model
     input_channels = int(args.use_multiview) * 128 + int(args.use_normal) * 3 + int(args.use_color) * 3 + int(not args.no_height)
@@ -64,7 +65,8 @@ def get_model(args):
         num_size_cluster=DC.num_size_cluster,
         mean_size_arr=DC.mean_size_arr,
         num_proposal=args.num_proposals,
-        input_feature_dim=input_channels
+        input_feature_dim=input_channels,
+        args=args
     ).cuda()
 
     path = os.path.join(CONF.PATH.OUTPUT, args.folder, "model.pth")
@@ -74,17 +76,42 @@ def get_model(args):
     return model
 
 def get_scanrefer(args):
-    scanrefer = SCANREFER_TRAIN if args.use_train else SCANREFER_VAL
-    all_scene_list = sorted(list(set([data["scene_id"] for data in scanrefer])))
-    if args.scene_id:
-        assert args.scene_id in all_scene_list, "The scene_id is not found"
-        scene_list = [args.scene_id]
+    if False: # args.detection:
+        scene_list = get_scannet_scene_list("val")
+        scanrefer = []
+        for scene_id in scene_list:
+            data = deepcopy(SCANREFER_TRAIN[0])
+            data["scene_id"] = scene_id
+            scanrefer.append(data)
     else:
+        scanrefer = SCANREFER_TRAIN if args.use_train else SCANREFER_VAL
         scene_list = sorted(list(set([data["scene_id"] for data in scanrefer])))
+        if args.num_scenes != -1:
+            scene_list = scene_list[:args.num_scenes]
 
-    scanrefer = [data for data in scanrefer if data["scene_id"] in scene_list]
+        scanrefer = [data for data in scanrefer if data["scene_id"] in scene_list]
 
-    return scanrefer, scene_list
+        new_scanrefer_val = scanrefer
+        scanrefer_val_new = []
+        scanrefer_val_new_scene = []
+        scene_id = ""
+        for data in scanrefer:
+            # if data["scene_id"] not in scanrefer_val_new:
+            # scanrefer_val_new[data["scene_id"]] = []
+            # scanrefer_val_new[data["scene_id"]].append(data)
+            if scene_id != data["scene_id"]:
+                scene_id = data["scene_id"]
+                if len(scanrefer_val_new_scene) > 0:
+                    scanrefer_val_new.append(scanrefer_val_new_scene)
+                scanrefer_val_new_scene = []
+            if len(scanrefer_val_new_scene) >= 1:
+                scanrefer_val_new.append(scanrefer_val_new_scene)
+                scanrefer_val_new_scene = []
+            scanrefer_val_new_scene.append(data)
+        if len(scanrefer_val_new_scene) > 0:
+            scanrefer_val_new.append(scanrefer_val_new_scene)
+
+    return scanrefer, scene_list, scanrefer_val_new
 
 def write_ply(verts, colors, indices, output_file):
     if colors is None:
@@ -308,6 +335,7 @@ def export_mesh(vertices, faces):
     return PlyData([vertices, faces])
 
 def align_mesh(scene_id):
+    # import ipdb; ipdb.set_trace()
     vertices, faces = read_mesh(SCANNET_MESH.format(scene_id, scene_id))
     for line in open(SCANNET_META.format(scene_id, scene_id)).readlines():
         if 'axisAlignment' in line:
@@ -350,9 +378,9 @@ def dump_results(args, scanrefer, data, config):
     pred_size_residual = pred_size_residual.squeeze(2).detach().cpu().numpy() # B,num_proposal,3
     # reference
     pred_ref_scores = data["cluster_ref"].detach().cpu().numpy()
-    pred_ref_scores_softmax = F.softmax(data["cluster_ref"] * torch.argmax(data['objectness_scores'], 2).float() * data['pred_mask'], dim=1).detach().cpu().numpy()
+    pred_ref_scores_softmax = F.softmax(data["cluster_ref"] * torch.argmax(data['objectness_scores'], 2).float() * torch.tensor(data['pred_mask'], device=data['objectness_scores'].device), dim=1).detach().cpu().numpy()
     # post-processing
-    nms_masks = data['pred_mask'].detach().cpu().numpy() # B,num_proposal
+    nms_masks = data['pred_mask'] # B,num_proposal
     
     # ground truth
     gt_center = data['center_label'].cpu().numpy() # (B,MAX_NUM_OBJ,3)
@@ -361,8 +389,7 @@ def dump_results(args, scanrefer, data, config):
     gt_size_class = data['size_class_label'].cpu().numpy() # B,K2
     gt_size_residual = data['size_residual_label'].cpu().numpy() # B,K2,3
     # reference
-    gt_ref_labels = data["ref_box_label"].detach().cpu().numpy()
-
+    gt_ref_labels = data["ref_box_label_list"].permute(0, 2, 1).detach().cpu().numpy()
     for i in range(batch_size):
         # basic info
         idx = ids[i]
@@ -383,6 +410,7 @@ def dump_results(args, scanrefer, data, config):
             write_ply_rgb(point_clouds[i], pcl_color[i], os.path.join(scene_dump_dir, 'pc.ply'))
 
          # filter out the valid ground truth reference box
+        # import ipdb; ipdb.set_trace()
         assert gt_ref_labels[i].shape[0] == gt_center[i].shape[0]
         gt_ref_idx = np.argmax(gt_ref_labels[i], 0)
 
@@ -400,7 +428,7 @@ def dump_results(args, scanrefer, data, config):
         pred_masks = nms_masks[i] * pred_objectness[i] == 1
         assert pred_ref_scores[i].shape[0] == pred_center[i].shape[0]
         pred_ref_idx = np.argmax(pred_ref_scores[i] * pred_masks, 0)
-        assigned_gt = torch.gather(data["ref_box_label"], 1, data["object_assignment"]).detach().cpu().numpy()
+        # assigned_gt = torch.gather(data["ref_box_label"], 1, data["object_assignment"]).detach().cpu().numpy()
 
         # visualize the predicted reference box
         pred_obb = config.param2obb(pred_center[i, pred_ref_idx, 0:3], pred_heading_class[i, pred_ref_idx], pred_heading_residual[i, pred_ref_idx],
@@ -413,10 +441,10 @@ def dump_results(args, scanrefer, data, config):
 def visualize(args):
     # init training dataset
     print("preparing data...")
-    scanrefer, scene_list = get_scanrefer(args)
+    scanrefer, scene_list, scanrefer_val_new  = get_scanrefer(args)
 
     # dataloader
-    _, dataloader = get_dataloader(args, scanrefer, scene_list, "val", DC, False)
+    _, dataloader = get_dataloader(args, scanrefer, scanrefer_val_new, scene_list, "val", DC)
 
     # model
     model = get_model(args)
@@ -441,7 +469,7 @@ def visualize(args):
 
         # feed
         data = model(data)
-        _, data = get_loss(data, DC, True, True, POST_DICT)
+        _, data = get_loss(data, DC, True, True, post_dict=POST_DICT)
         
         # visualize
         dump_results(args, scanrefer, data, DC)
