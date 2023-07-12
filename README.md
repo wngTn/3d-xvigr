@@ -1,7 +1,8 @@
 # 3D-XVIGR
 
-This repository is for 3D-XVIGR, a work done at the ADL4CV course at TUM.
-It is based on 3-DVG and 3DETR.
+This repository is for 3D-XVIGR, a work done at the ADL4CV SS2023 course at TUM.
+
+The final technical report can be found [here](assets/ADL4CV_Final_Report.pdf).
 
 ## Introduction
 
