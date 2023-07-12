@@ -6,7 +6,7 @@ The final technical report can be found [here](assets/ADL4CV_Final_Report.pdf).
 
 ## Introduction
 
-![3D-XVIGR Architecture](assets/3D_XVIGR_Proposal_Architecture.pdf)
+![3D-XVIGR Architecture](assets/3D_XVIGR_Proposal_Architecture.png)
 
 We propose 3D-XVIGR (Pronunciation: \textit{3D-Ex-Vigor}. The "X" signifies the use of a \textit{Trans}former, while "VIGR" is an acronym derived from VIsual GRounding.), a novel transformer-based model for the 3D visual grounding task.
 The core objective of this task is to accurately localize 3D objects using text descriptions by aligning visual and natural language data.
