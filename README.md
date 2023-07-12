@@ -8,7 +8,7 @@ The final technical report can be found [here](assets/ADL4CV_Final_Report.pdf).
 
 ![3D-XVIGR Architecture](assets/3D_XVIGR_Proposal_Architecture.png)
 
-We propose 3D-XVIGR (Pronunciation: \textit{3D-Ex-Vigor}. The "X" signifies the use of a \textit{Trans}former, while "VIGR" is an acronym derived from VIsual GRounding.), a novel transformer-based model for the 3D visual grounding task.
+We propose 3D-XVIGR (Pronunciation: *3D-Ex-Vigor*. The "X" signifies the use of a *Trans*former, while "VIGR" is an acronym derived from VIsual GRounding), a novel transformer-based model for the 3D visual grounding task.
 The core objective of this task is to accurately localize 3D objects using text descriptions by aligning visual and natural language data.
 To achieve this, we formulate our approach by leveraging the aptitude of transformers for 3D point cloud detection and multi-modal matching.
 Moreover, we propose a novel decoder layer that inputs object query proposals, point cloud features, and word features to foster a more robust alignment between the textual descriptions and their corresponding 3D visual representations.
