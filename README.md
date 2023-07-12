@@ -119,7 +119,7 @@ Note that the flags must match the ones set before training. The training inform
 For submitting the predictions, please compress the `pred.json` as a .zip or .7z file and follow the [instructions](http://kaldir.vc.in.tum.de/scanrefer_benchmark/documentation) to upload your results.
 
 ### Visualization
-![image-Visualization](demo/Visualization.png)
+![image-Visualization](assets/qualitative_results.png)
 
 To predict the localization results predicted by the trained ScanRefer model in a specific scene, please find the corresponding folder under `outputs/` with the current timestamp and run:
 
