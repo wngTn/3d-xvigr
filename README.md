@@ -5,7 +5,16 @@ It is based on 3-DVG and 3DETR.
 
 ## Introduction
 
-Visual grounding on 3D point clouds is an emerging vision and language task that benefits various applications in understanding the 3D visual world. By formulating this task as a grounding-by-detection problem, lots of recent works focus on how to exploit more powerful detectors and comprehensive language features, but (1) how to model complex relations for generating context-aware object proposals and (2) how to leverage proposal relations to distinguish the true target object from similar proposals are not fully studied yet. Inspired by the well-known transformer architecture, we propose a relation-aware visual grounding method on 3D point clouds, named as 3DVG-Transformer, to fully utilize the contextual clues for relation-enhanced proposal generation and cross-modal proposal disambiguation, relation-aware proposal generation and cross-modal feature fusion, which are enabled by a newly designed coordinate-guided contextual aggregation (CCA) module in the object proposal generation stage, and a multiplex attention (MA) module in the cross-modal feature fusion stage. With the aid of two proposed feature augmentation strategies to alleviate overfitting, we validate that our 3DVG-Transformer outperforms the state-of-the-art methods by a large margin, on two point cloud-based visual grounding datasets, ScanRefer and Nr3D/Sr3D from ReferIt3D, especially for complex scenarios containing multiple objects of the same category.
+![3D-XVIGR Architecture](assets/3D_XVIGR_Proposal_Architecture.pdf)
+
+We propose 3D-XVIGR (Pronunciation: \textit{3D-Ex-Vigor}. The "X" signifies the use of a \textit{Trans}former, while "VIGR" is an acronym derived from VIsual GRounding.), a novel transformer-based model for the 3D visual grounding task.
+The core objective of this task is to accurately localize 3D objects using text descriptions by aligning visual and natural language data.
+To achieve this, we formulate our approach by leveraging the aptitude of transformers for 3D point cloud detection and multi-modal matching.
+Moreover, we propose a novel decoder layer that inputs object query proposals, point cloud features, and word features to foster a more robust alignment between the textual descriptions and their corresponding 3D visual representations.
+Our model performs comparably on the ScanRefer dataset, even without using hand-crafted data augmentation techniques employed by the 3DVG Transformer, our baseline in this work. 
+Consequently, our method presents a distinct and more streamlined approach for this task. 
+3D-XVIGR also yields promising results in the qualitative analysis, accurately associating textual descriptions with 3D point clouds.
+This work, therefore, provides insights into the challenges and opportunities associated with transformer-based solutions for 3D visual grounding. We believe that the findings offer valuable contributions to ongoing discourse and developments in this area, setting the stage for further enhancements to the 3D-XVIGR architecture. 
 
 
 ## Dataset & Setup
@@ -77,7 +86,7 @@ __Before moving on to the next step, please don't forget to set the project root
 ### Training
 To train the 3DVG-Transformer model with multiview features:
 ```shell
-python scripts/ScanRefer_train.py --use_multiview --use_normal --batch_size 8 --epoch 200 --lr 0.002 --coslr --tag 3dvg-trans+
+python scripts/ScanRefer_train.py --use_multiview --use_normal --batch_size 8 --epoch 200 --lr 5e-4 --coslr --tag 3d-xvigr --proposal_generator "3detr" --enc_type masked
 ```
 settings:
 XYZ: --use_normal
@@ -121,88 +130,3 @@ Note that the flags must match the ones set before training. The training inform
 In our next version, the heatmap visualization code will be open-sourced in the 3DJCG (CVPR2022, Oral) codebase. 
 
 The generated .ply or .obj files could be visualized in software such as **MeshLab**.
-
-### Results
-
-![image-Results](demo/Results.png)
-
-settings:
-3D Only (XYZ+RGB): --use_color --use_normal
-2D+3D (XYZ+Multiview): --use_multiview --use_normal
-
-|             Validation Set             |             |          |  Unique  |  Unique | Multiple | Multiple |  Overall | Overall |
-|:--------------------------------------:|:-----------:|:--------:|:--------:|:-------:|:--------:|:--------:|:--------:|:-------:|
-|                 Methods                | Publication | Modality | Acc@0.25 | Acc@0.5 | Acc@0.25 |  Acc@0.5 | Acc@0.25 | Acc@0.5 |
-|                  SCRC                  |    CVPR16   |    2D    |   24.03  |   9.22  |   17.77  |   5.97   |   18.70  |   6.45  |
-|                One-Stage               |    ICCV19   |    2D    |   29.32  |  22.82  |   18.72  |   6.49   |   20.38  |   9.04  |
-|                                        |             |          |          |         |          |          |          |         |
-|                ScanRefer               |   ECCV2020  |    3D    |   67.64  |  46.19  |   32.06  |   21.26  |   38.97  |  26.10  |
-|                  TGNN                  |   AAAI2021  |    3D    |   68.61  |  56.80  |   29.84  |   23.18  |   37.37  |  29.70  |
-|              InstanceRefer             |   ICCV2021  |    3D    |   77.45  |  66.83  |   31.27  |   24.77  |   40.23  |  32.93  |
-|                   SAT                  |   ICCV2021  |    3D    |   73.21  |  50.83  |   37.64  |   25.16  |   44.54  |  30.14  |
-|         3DVG-Transformer (ours)        |   ICCV2021  |    3D    |   77.16  |  58.47  |   38.38  |   28.70  |   45.90  |  34.47  |
-|               BEAUTY-DETR              |      -      |    3D    |     -    |    -    |     -    |     -    |   46.40  |    -    |
-|                  3DJCG                 |   CVPR2022  |    3D    |   78.75  |  61.30  |   40.13  |   30.08  |   47.62  |  36.14  |
-|                 3D-SPS                 |   CVPR2022  |    3D    |   81.63  |  64.77  |   39.48  |   29.61  |   47.65  |  36.43  |
-|                                        |             |          |          |         |          |          |          |         |
-|                ScanRefer               |   ECCV2020  |  2D + 3D |   76.33  |  53.51  |   32.73  |   21.11  |   41.19  |  27.40  |
-|                  TGNN                  |   AAAI2021  |  2D + 3D |   68.61  |  56.80  |   29.84  |   23.18  |   37.37  |  29.70  |
-|              InstanceRefer             |   ICCV2021  |  2D + 3D |   75.72  |  64.66  |   29.41  |   22.99  |   38.40  |  31.08  |
-|         3DVG-Transformer (Ours)        |   ICCV2021  |  2D + 3D |   81.93  |  60.64  |   39.30  |   28.42  |   47.57  |  34.67  |
-| 3DVG-Transformer+(Ours, this codebase) |      -      |  2D + 3D |   83.25  |  61.95  |   41.20  |   30.29  |   49.36  |  36.43  |
-|                MVT-3DVG                |   CVPR2022  |  2D + 3D |   77.67  |  66.45  |   31.92  |   25.26  |   40.80  |  33.26  |
-|                  3DJCG                 |   CVPR2022  |  2D + 3D |   83.47  |  64.34  |   41.39  |   30.82  |   49.56  |  37.33  |
-|                 3D-SPS                 |   CVPR2022  |  2D + 3D |   84.12  |  66.72  |   40.32  |   29.82  |   48.82  |  36.98  |
-
-|    Online Benchmark     |          |  Unique  | Unique  | Multiple | Multiple | Overall  | Overall |
-| :---------------------: | :------: | :------: | :-----: | :------: | :------: | :------: | :-----: |
-|         Methods         | Modality | Acc@0.25 | Acc@0.5 | Acc@0.25 | Acc@0.5  | Acc@0.25 | Acc@0.5 |
-|        ScanRefer        | 2D + 3D  |  68.59   |  43.53  |  34.88   |  20.97   |  42.44   |  26.03  |
-|          TGNN           | 2D + 3D  |  68.34   |  58.94  |  /33.12  |  25.26   |  41.02   |  32.81  |
-|      InstanceRefer      | 2D + 3D  |  77.82   |  66.69  |  34.57   |  26.88   |  44.27   |  35.80  |
-| 3DVG-Transformer (Ours) | 2D + 3D  |  75.76   |  55.15  |  42.24   |  29.33   |  49.76   |  35.12  |
-| 3DVG-Transformer+(Ours) | 2D + 3D  |  77.33   |  57.87  |  43.70   |  31.02   |  51.24   |  37.04  |
-
-
-## Changelog
-
-2022/04: Update Readme.md.
-
-2022/04: Release the codes of 3DVG-Transformer.
-
-2021/07: 3DVG-Transformer is accepted at ICCV 2021.
-
-2021/06: 3DVG-Transformer+ won the ScanRefer Challenge in the CVPR2021 [1st Workshop on Language for 3D Scenes](https://language3dscenes.github.io/).
-
-2021/04: 3DVG-Transformer+ achieves 1st place in [ScanRefer Leaderboard](http://kaldir.vc.in.tum.de/scanrefer_benchmark/).
-
-## Citation
-
-If you use the codes in your work, please kindly cite our work 3DVG-Transformer and the original ScanRefer paper:
-
-```
-@inproceedings{zhao2021_3DVG_Transformer,
-    title={{3DVG-Transformer}: Relation modeling for visual grounding on point clouds},
-    author={Zhao, Lichen and Cai, Daigang and Sheng, Lu and Xu, Dong},
-    booktitle={ICCV},
-    pages={2928--2937},
-    year={2021}
-}
-
-@article{chen2020scanrefer,
-    title={{ScanRefer}: 3D Object Localization in RGB-D Scans using Natural Language},
-    author={Chen, Dave Zhenyu and Chang, Angel X and Nie{\ss}ner, Matthias},
-    pages={202--221},
-    journal={ECCV},
-    year={2020}
-}
-```
-
-## Acknowledgement
-We would like to thank [facebookresearch/votenet](https://github.com/facebookresearch/votenet) for the 3D object detection codebase and [erikwijmans/Pointnet2_PyTorch](https://github.com/erikwijmans/Pointnet2_PyTorch) for the CUDA accelerated PointNet++ implementation.
-
-For further acceleration, you could use [KD-Tree](https://github.com/zlccccc/3dpoint_cuda_kdtree) to accelerate the PointNet++ process.
-
-## License
-
-This repository is released under MIT License (see LICENSE file for details).
