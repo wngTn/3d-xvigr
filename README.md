@@ -116,8 +116,6 @@ python scripts/visualize.py --folder <folder_name> --scene_id <scene_id> --use_c
 ```
 Note that the flags must match the ones set before training. The training information is stored in `outputs/<folder_name>/info.json`. The output `.ply` files will be stored under `outputs/<folder_name>/vis/<scene_id>/`
 
-In our next version, the heatmap visualization code will be open-sourced in the 3DJCG (CVPR2022, Oral) codebase. 
-
 The generated .ply or .obj files could be visualized in software such as **MeshLab**.
 
 ### Results
